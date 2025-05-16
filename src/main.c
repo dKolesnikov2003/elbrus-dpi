@@ -8,8 +8,59 @@
 #include <pcap.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <signal.h>
 
 #include "packet_processor.h"
+
+typedef enum { CAP_SRC_FILE = 0, CAP_SRC_IFACE = 1 } CaptureMode;
+
+typedef struct {
+    CaptureMode mode;       /* файл или интерфейс */
+    const char *source;     /* имя pcap или интерфейса */
+    const char *logfile;    /* -o лог */
+    const char *bpf;        /* -b фильтр (опц.) */
+} CaptureOptions;
+
+static volatile sig_atomic_t stop_capture = 0;
+static pcap_t *g_pcap_handle = NULL;
+
+static void handle_sigint(int signo) {
+    (void)signo;
+    stop_capture = 1;
+    if(g_pcap_handle) pcap_breakloop(g_pcap_handle);
+}
+
+/* CLI:  -f <file> | -i <iface>  [-o <log>] [-b "bpf"] */
+static int parse_args(int argc, char **argv, CaptureOptions *opt) {
+    memset(opt, 0, sizeof(*opt));
+    opt->mode = -1;
+    for(int i = 1; i < argc; ++i) {
+        if(strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--file") == 0) {
+            if(++i >= argc) { fprintf(stderr, "-f требует аргумент\n"); return -1; }
+            opt->mode = CAP_SRC_FILE;
+            opt->source = argv[i];
+        } else if(strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--interface") == 0) {
+            if(++i >= argc) { fprintf(stderr, "-i требует аргумент\n"); return -1; }
+            opt->mode = CAP_SRC_IFACE;
+            opt->source = argv[i];
+        } else if(strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--output") == 0) {
+            if(++i >= argc) { fprintf(stderr, "-o требует аргумент\n"); return -1; }
+            opt->logfile = argv[i];
+        } else if(strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--bpf") == 0) {
+            if(++i >= argc) { fprintf(stderr, "-b требует аргумент\n"); return -1; }
+            opt->bpf = argv[i];
+        } else {
+            fprintf(stderr, "Неизвестный параметр: %s\n", argv[i]);
+            return -1;
+        }
+    }
+    if(opt->mode == -1) {
+        fprintf(stderr, "Обязателен -f <pcap> или -i <iface>\n");
+        return -1;
+    }
+    return 0;
+}
+
 
 // Количество потоков обработки (по умолчанию 8 для Эльбрус-8C)
 #define THREAD_COUNT 8
@@ -20,38 +71,6 @@
 static ThreadParam thread_params[THREAD_COUNT];
 static pthread_t threads[THREAD_COUNT];
 
-// Функция парсинга аргументов командной строки
-// Возвращает имя входного pcap-файла, или NULL при ошибке
-const char *parse_args(int argc, char *argv[], const char **out_logfile) {
-    const char *pcap_file = NULL;
-    *out_logfile = NULL;
-    // Простейший разбор: ожидаем pcap-файл и опционально -o файл_лога
-    for(int i = 1; i < argc; ++i) {
-        if(strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--output") == 0) {
-            if(i + 1 < argc) {
-                *out_logfile = argv[i+1];
-                i++;
-            } else {
-                fprintf(stderr, "Ошибка: не указан файл для опции -o/--output\n");
-                return NULL;
-            }
-        } else {
-            // Первый не опциональный аргумент считается именем pcap-файла
-            if(pcap_file == NULL) {
-                pcap_file = argv[i];
-            } else {
-                // Если передано более одного не опционального аргумента
-                fprintf(stderr, "Использование: %s [-o output.log] <input.pcap>\n", argv[0]);
-                return NULL;
-            }
-        }
-    }
-    if(pcap_file == NULL) {
-        fprintf(stderr, "Использование: %s [-o output.log] <input.pcap>\n", argv[0]);
-        return NULL;
-    }
-    return pcap_file;
-}
 
 // Функция чтения пакетов из pcap и распределения по потокам
 int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
@@ -62,7 +81,7 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
     // Читаем пакеты из pcap файла по одному
     while((status = pcap_next_ex(pcap, &header, &pkt_data)) >= 0) {
         if(status == 0) {
-            // 0 означает таймаут (для оффлайн не должно быть, но на всякий случай)
+            // таймаут
             continue;
         }
         packet_count++;
@@ -82,11 +101,14 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
         // Добавляем пакет в соответствующую очередь
         enqueue_packet(&queues[thread_id], item);
     }
-    if(status == -1) {
-        // Ошибка чтения pcap
+    if(status == PCAP_ERROR_BREAK || stop_capture) {
+        /* Захват прерван (Ctrl‑C) */
+        fprintf(stderr, "Захват прерван: %s\n", pcap_geterr(pcap));
+        return -1;
+    } else if(status == -1) {
         fprintf(stderr, "Ошибка pcap: %s\n", pcap_geterr(pcap));
         return -1;
-    }
+     }
     // Завершаем очереди, добавляя сигнал окончания (sentinel) для каждого потока
     for(int i = 0; i < THREAD_COUNT; ++i) {
         enqueue_terminate(&queues[i]);
@@ -95,18 +117,37 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
 }
 
 int main(int argc, char *argv[]) {
-    const char *log_filename;
-    const char *pcap_filename = parse_args(argc, argv, &log_filename);
-    if(pcap_filename == NULL) {
+    CaptureOptions opts;
+    if(parse_args(argc, argv, &opts) != 0) {
+        fprintf(stderr, "Использование: %s -f <pcap> | -i <iface> [-o log] [-b 'bpf']\n", argv[0]);
         return EXIT_FAILURE;
     }
-    // Открываем pcap-файл для оффлайн чтения
+
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *pcap_handle = pcap_open_offline(pcap_filename, errbuf);
+    pcap_t *pcap_handle = NULL;
+    if(opts.mode == CAP_SRC_FILE) {
+        pcap_handle = pcap_open_offline(opts.source, errbuf);
+    } else {
+        pcap_handle = pcap_open_live(opts.source, 65535, 1, 1000, errbuf);
+        signal(SIGINT, handle_sigint);
+        if(opts.bpf && pcap_handle) {
+            struct bpf_program prog;
+            if(pcap_compile(pcap_handle, &prog, opts.bpf, 1, PCAP_NETMASK_UNKNOWN) == -1 ||
+               pcap_setfilter(pcap_handle, &prog) == -1) {
+                fprintf(stderr, "BPF ошибка: %s\n", pcap_geterr(pcap_handle));
+            }
+            pcap_freecode(&prog);
+        }
+    }
     if(pcap_handle == NULL) {
-        fprintf(stderr, "Не удалось открыть pcap-файл: %s\n", errbuf);
+        fprintf(stderr, "pcap: %s\n", errbuf);
         return EXIT_FAILURE;
     }
+
+    g_pcap_handle = pcap_handle;
+    
+    const char *log_filename = opts.logfile;
+    const char *capture_name = opts.source;
 
     // Создаем очереди для каждого потока и инициализируем nDPI для каждого потока
     PacketQueue queues[THREAD_COUNT];
@@ -182,7 +223,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Выводим заголовок лога
-    fprintf(out, "Результаты анализа pcap-файла \"%s\":\n", pcap_filename);
+    fprintf(out, "Результаты анализа источника \"%s\":\n", capture_name);
     fprintf(out, "Всего классифицированных пакетов: %zu\n\n", total_results);
     // Выводим записи, уже отсортированные по протоколам
     for(size_t i = 0; i < total_results; ++i) {
