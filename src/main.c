@@ -12,6 +12,13 @@
 
 #include "packet_processor.h"
 
+// Количество потоков обработки (по умолчанию 8 для Эльбрус-8C)
+#define THREAD_COUNT 8
+
+// Глобальный массив параметров потоков и дескрипторов потоков
+static ThreadParam thread_params[THREAD_COUNT];
+static pthread_t threads[THREAD_COUNT];
+
 typedef enum { CAP_SRC_FILE = 0, CAP_SRC_IFACE = 1 } CaptureMode;
 
 typedef struct {
@@ -60,17 +67,6 @@ static int parse_args(int argc, char **argv, CaptureOptions *opt) {
     }
     return 0;
 }
-
-
-// Количество потоков обработки (по умолчанию 8 для Эльбрус-8C)
-#define THREAD_COUNT 8
-
-// Структура для передачи параметров потоку обработки
-
-// Глобальный массив параметров потоков и дескрипторов потоков
-static ThreadParam thread_params[THREAD_COUNT];
-static pthread_t threads[THREAD_COUNT];
-
 
 // Функция чтения пакетов из pcap и распределения по потокам
 int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
@@ -127,7 +123,7 @@ int main(int argc, char *argv[]) {
     pcap_t *pcap_handle = NULL;
     if(opts.mode == CAP_SRC_FILE) {
         pcap_handle = pcap_open_offline(opts.source, errbuf);
-    } else {
+    } else if(opts.mode == CAP_SRC_IFACE) {
         pcap_handle = pcap_open_live(opts.source, 65535, 1, 1000, errbuf);
         signal(SIGINT, handle_sigint);
         if(opts.bpf && pcap_handle) {
