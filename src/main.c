@@ -73,6 +73,7 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
     struct pcap_pkthdr *header;
     const u_char *pkt_data;
     int status;
+    int error_occurred = 0;
     uint64_t packet_count = 0;
     // Читаем пакеты из pcap файла по одному
     while((status = pcap_next_ex(pcap, &header, &pkt_data)) >= 0) {
@@ -85,7 +86,8 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
         u_char *data_copy = (u_char*)malloc(header->caplen);
         if(data_copy == NULL) {
             fprintf(stderr, "Ошибка: недостаточно памяти для копирования пакета\n");
-            return -1;
+            error_occurred = 1;
+            break;
         }
         memcpy(data_copy, pkt_data, header->caplen);
         // Определяем, к какому потоку отнести пакет (хешируем по IP/портам)
@@ -100,16 +102,18 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
     if(status == PCAP_ERROR_BREAK || stop_capture) {
         /* Захват прерван (Ctrl‑C) */
         fprintf(stderr, "Захват прерван: %s\n", pcap_geterr(pcap));
-        return -1;
+        error_occurred = 1;
     } else if(status == -1) {
         fprintf(stderr, "Ошибка pcap: %s\n", pcap_geterr(pcap));
-        return -1;
-     }
+        error_occurred = 1;
+    }
+    
     // Завершаем очереди, добавляя сигнал окончания (sentinel) для каждого потока
     for(int i = 0; i < THREAD_COUNT; ++i) {
         enqueue_terminate(&queues[i]);
     }
-    return 0;
+
+    return error_occurred ? -1 : 0;
 }
 
 int main(int argc, char *argv[]) {
