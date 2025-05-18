@@ -11,9 +11,7 @@
 #include <signal.h>
 
 #include "packet_processor.h"
-
-// Количество потоков обработки (по умолчанию 8 для Эльбрус-8C)
-#define THREAD_COUNT 8
+#include "config.h"
 
 // Глобальный массив параметров потоков и дескрипторов потоков
 static ThreadParam thread_params[THREAD_COUNT];
@@ -27,6 +25,11 @@ typedef struct {
     const char *logfile;    /* -o лог */
     const char *bpf;        /* -b фильтр (опц.) */
 } CaptureOptions;
+
+typedef struct {
+    pcap_t *pcap_handle;
+    PacketQueue *queues;
+} CaptureThreadArgs;
 
 static volatile sig_atomic_t stop_capture = 0;
 static pcap_t *g_pcap_handle = NULL;
@@ -73,7 +76,6 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
     struct pcap_pkthdr *header;
     const u_char *pkt_data;
     int status;
-    int error_occurred = 0;
     uint64_t packet_count = 0;
     // Читаем пакеты из pcap файла по одному
     while((status = pcap_next_ex(pcap, &header, &pkt_data)) >= 0) {
@@ -82,12 +84,12 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
             continue;
         }
         packet_count++;
+
         // Копируем данные пакета, т.к. pcap_next_ex возвращает указатель на внутренний буфер
         u_char *data_copy = (u_char*)malloc(header->caplen);
         if(data_copy == NULL) {
             fprintf(stderr, "Ошибка: недостаточно памяти для копирования пакета\n");
-            error_occurred = 1;
-            break;
+            return -1;
         }
         memcpy(data_copy, pkt_data, header->caplen);
         // Определяем, к какому потоку отнести пакет (хешируем по IP/портам)
@@ -102,18 +104,25 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
     if(status == PCAP_ERROR_BREAK || stop_capture) {
         /* Захват прерван (Ctrl‑C) */
         fprintf(stderr, "Захват прерван: %s\n", pcap_geterr(pcap));
-        error_occurred = 1;
+        return -1;
     } else if(status == -1) {
         fprintf(stderr, "Ошибка pcap: %s\n", pcap_geterr(pcap));
-        error_occurred = 1;
-    }
-    
-    // Завершаем очереди, добавляя сигнал окончания (sentinel) для каждого потока
-    for(int i = 0; i < THREAD_COUNT; ++i) {
-        enqueue_terminate(&queues[i]);
+        return -1;
     }
 
-    return error_occurred ? -1 : 0;
+    return 0;
+}
+
+void *capture_thread_func(void *arg) {
+    CaptureThreadArgs *args = (CaptureThreadArgs *)arg;
+    // Здесь захват + отправка в очереди
+    distribute_packets(args->pcap_handle, args->queues);
+
+    // Когда захват завершён — посылаем сигнал завершения обработчикам
+    for (int i = 0; i < THREAD_COUNT; ++i) {
+        enqueue_terminate(&args->queues[i]);
+    }
+    return NULL;
 }
 
 int main(int argc, char *argv[]) {
@@ -152,6 +161,7 @@ int main(int argc, char *argv[]) {
     // Создаем очереди для каждого потока и инициализируем nDPI для каждого потока
     PacketQueue queues[THREAD_COUNT];
     NDPI_ThreadInfo ndpi_infos[THREAD_COUNT];
+
     for(int i = 0; i < THREAD_COUNT; ++i) {
         init_queue(&queues[i]);
         if(init_ndpi_detection(&ndpi_infos[i]) != 0) {
@@ -169,17 +179,19 @@ int main(int argc, char *argv[]) {
             return EXIT_FAILURE;
         }
     }
-
-    // В главном потоке распределяем пакеты по очередям
-    if(distribute_packets(pcap_handle, queues) != 0) {
-        // Если произошла ошибка при чтении пакетов
-        // Посылаем сигнал всем потокам завершиться
-        for(int i = 0; i < THREAD_COUNT; ++i) {
-            enqueue_terminate(&queues[i]);
-        }
+    // Поток захвата
+    pthread_t capture_thread;
+    CaptureThreadArgs capture_args = {
+        .pcap_handle = pcap_handle,
+        .queues = queues
+    };
+    if (pthread_create(&capture_thread, NULL, capture_thread_func, &capture_args) != 0) {
+        fprintf(stderr, "Ошибка: не удалось создать поток захвата\n");
+        return EXIT_FAILURE;
     }
 
     // Ожидаем завершения всех потоков
+    pthread_join(capture_thread, NULL);
     for(int i = 0; i < THREAD_COUNT; ++i) {
         pthread_join(threads[i], NULL);
     }

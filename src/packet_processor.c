@@ -7,8 +7,8 @@
 #include <netinet/ip6.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
+#include "config.h"
 
-#define THREAD_COUNT 8
 // Константы для хеш-таблицы потоков в каждом потоке
 #define FLOW_HASH_SIZE 8192  // размер таблицы хеширования потоков (должна быть степенью 2 для эффективности)
 
