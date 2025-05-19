@@ -73,9 +73,14 @@ int init_ndpi_detection(NDPI_ThreadInfo *info) {
         return -1;
     }
     // Выделяем память под результаты (начально 0 записей, память будет увеличиваться по мере необходимости)
-    info->results = NULL;
+    info->result_capacity = 1024; // или другой разумный размер, не 0!
+    info->results = malloc(info->result_capacity * sizeof(PacketLogEntry));
+    if (!info->results) {
+        fprintf(stderr, "Ошибка: не удалось выделить память для буфера результатов\n");
+        ndpi_exit_detection_module(info->ndpi_struct);
+        return -1;
+    }
     info->result_count = 0;
-    info->result_capacity = 0;
     // Инициализируем хеш-таблицу потоков (изначально все бакеты пустые)
     memset(info->flow_table, 0, sizeof(info->flow_table));
     return 0;
@@ -110,20 +115,35 @@ void free_thread_resources(NDPI_ThreadInfo *info) {
 
 // Вспомогательная функция для добавления записи результата (лог) в массив результатов потока
 static void add_result_entry(NDPI_ThreadInfo *info, PacketLogEntry *entry) {
-    // Если массив результатов заполнен, увеличиваем его размер
-    if(info->result_count == info->result_capacity) {
-        size_t new_cap = (info->result_capacity == 0) ? 1024 : info->result_capacity * 2;
-        PacketLogEntry *new_array = realloc(info->results, new_cap * sizeof(PacketLogEntry));
-        if(new_array == NULL) {
-            fprintf(stderr, "Ошибка: не удалось выделить память под результаты\n");
-            // Если не удалось увеличить, просто выходим (пропуск записи)
+    pthread_mutex_lock(&info->results_mutex);
+
+    if (info->result_count == info->result_capacity) {
+        FlushBuffer *flush_buf = malloc(sizeof(FlushBuffer));
+        if (!flush_buf) {
+            fprintf(stderr, "Ошибка: не удалось выделить память для FlushBuffer\n");
+            pthread_mutex_unlock(&info->results_mutex);
             return;
         }
-        info->results = new_array;
-        info->result_capacity = new_cap;
+
+        flush_buf->entries = info->results;
+        flush_buf->count = info->result_count;
+
+        info->results = malloc(info->result_capacity * sizeof(PacketLogEntry));
+        if (!info->results) {
+            fprintf(stderr, "Ошибка: не удалось выделить память для нового буфера результатов\n");
+            // мы уже отдали старый буфер на flush, поэтому не освобождаем!
+            pthread_mutex_unlock(&info->results_mutex);
+            return;
+        }
+
+        info->result_count = 0;
+
+        flush_queue_push(info->flush_queue, flush_buf);
     }
-    // Сохраняем запись в массиве результатов
+    
     info->results[info->result_count++] = *entry;
+
+    pthread_mutex_unlock(&info->results_mutex);
 }
 
 // Выбирает ID потока (0..THREAD_COUNT-1) по содержимому пакета (используется в главном потоке)
@@ -500,6 +520,43 @@ void enqueue_terminate(PacketQueue *q) {
     memset(&term, 0, sizeof(term));
     term.data = NULL; // null-указатель будет признаком окончания
     enqueue_packet(q, term);
+}
+
+void flush_queue_init(FlushQueue *fq) {
+    fq->head = fq->tail = NULL;
+    fq->terminate = 0;
+    pthread_mutex_init(&fq->mutex, NULL);
+    pthread_cond_init(&fq->cond_nonempty, NULL);
+}
+
+void flush_queue_push(FlushQueue *fq, FlushBuffer *buf) {
+    buf->next = NULL;
+    pthread_mutex_lock(&fq->mutex);
+    if (fq->tail) fq->tail->next = buf;
+    else fq->head = buf;
+    fq->tail = buf;
+    pthread_cond_signal(&fq->cond_nonempty);
+    pthread_mutex_unlock(&fq->mutex);
+}
+
+FlushBuffer* flush_queue_pop(FlushQueue *fq) {
+    pthread_mutex_lock(&fq->mutex);
+    while (!fq->head && !fq->terminate)
+        pthread_cond_wait(&fq->cond_nonempty, &fq->mutex);
+    FlushBuffer *buf = fq->head;
+    if (buf) {
+        fq->head = buf->next;
+        if (!fq->head) fq->tail = NULL;
+    }
+    pthread_mutex_unlock(&fq->mutex);
+    return buf;
+}
+
+void flush_queue_terminate(FlushQueue *fq) {
+    pthread_mutex_lock(&fq->mutex);
+    fq->terminate = 1;
+    pthread_cond_broadcast(&fq->cond_nonempty);
+    pthread_mutex_unlock(&fq->mutex);
 }
 
 // Функция сравнения для сортировки записей по имени протокола (алфавитно)

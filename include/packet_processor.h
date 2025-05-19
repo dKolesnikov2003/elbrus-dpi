@@ -53,6 +53,20 @@ typedef struct {
     char protocol_name[64];  // Название обнаруженного протокола (например, "HTTP")
 } PacketLogEntry;
 
+typedef struct FlushBuffer {
+    PacketLogEntry *entries;
+    size_t count;
+    struct FlushBuffer *next;
+} FlushBuffer;
+
+typedef struct {
+    FlushBuffer *head;
+    FlushBuffer *tail;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond_nonempty;
+    int terminate;
+} FlushQueue;
+
 // Информация о потоке обработки, включая nDPI и результаты
 typedef struct {
     struct ndpi_detection_module_struct *ndpi_struct;  // локальная структура nDPI для потока
@@ -61,6 +75,8 @@ typedef struct {
     PacketLogEntry *results; // динамический массив результатов (лог записей) данного потока
     size_t result_count;
     size_t result_capacity;
+    FlushQueue *flush_queue;
+    pthread_mutex_t results_mutex; 
 } NDPI_ThreadInfo;
 
 // Параметры, передаваемые в поток (определены в main.c)
@@ -70,6 +86,7 @@ typedef struct {
     PacketQueue *queue;
     NDPI_ThreadInfo *ndpi_info;
 } ThreadParam;
+
 
 // Функции работы с очередью пакетов
 void init_queue(PacketQueue *q);
@@ -83,6 +100,13 @@ int init_ndpi_detection(NDPI_ThreadInfo *info);
 void free_thread_resources(NDPI_ThreadInfo *info);
 int select_thread_for_packet(const u_char *packet, uint32_t caplen);
 void *packet_processor_thread(void *arg);
+
+// Функции для работы с очередью буферов
+void flush_queue_init(FlushQueue *fq);
+void flush_queue_push(FlushQueue *fq, FlushBuffer *buf);
+FlushBuffer* flush_queue_pop(FlushQueue *fq);
+void flush_queue_terminate(FlushQueue *fq);
+void flush_queue_destroy(FlushQueue *fq);
 
 // Функция сравнения для сортировки результатов по имени протокола
 int compare_by_protocol(const void *a, const void *b);
