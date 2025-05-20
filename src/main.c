@@ -2,16 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <unistd.h>
-#include <errno.h>
 #include <pthread.h>
 #include <pcap.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
 #include <signal.h>
 
 #include "packet_processor.h"
 #include "config.h"
+#include "db_writer.h"
 
 // Глобальный массив параметров потоков и дескрипторов потоков
 static ThreadParam thread_params[THREAD_COUNT];
@@ -22,7 +19,6 @@ typedef enum { CAP_SRC_FILE = 0, CAP_SRC_IFACE = 1 } CaptureMode;
 typedef struct {
     CaptureMode mode;       /* файл или интерфейс */
     const char *source;     /* имя pcap или интерфейса */
-    const char *logfile;    /* -o лог */
     const char *bpf;        /* -b фильтр (опц.) */
 } CaptureOptions;
 
@@ -126,37 +122,19 @@ void* db_flusher_thread(void *arg) {
     FlushQueue *fq = (FlushQueue*)arg;
     FlushBuffer *buf;
 
-    FILE *out = stdout; // выводим пока в консоль
+    // Имя БД (или получите из параметров/глобальной переменной)
+    static int db_initialized = 0;
+    if(!db_initialized) {
+        db_writer_init("results.db");
+        db_initialized = 1;
+    }
 
     while ((buf = flush_queue_pop(fq)) != NULL) {
-        for(size_t i = 0; i < buf->count; ++i) {
-            PacketLogEntry *entry = &buf->entries[i];
-
-            char src_str[INET6_ADDRSTRLEN];
-            char dst_str[INET6_ADDRSTRLEN];
-
-            if(entry->ip_version == 4) {
-                inet_ntop(AF_INET, &entry->ip_src.v4, src_str, sizeof(src_str));
-                inet_ntop(AF_INET, &entry->ip_dst.v4, dst_str, sizeof(dst_str));
-            } else if(entry->ip_version == 6) {
-                inet_ntop(AF_INET6, &entry->ip_src.v6, src_str, sizeof(src_str));
-                inet_ntop(AF_INET6, &entry->ip_dst.v6, dst_str, sizeof(dst_str));
-            } else {
-                strcpy(src_str, "N/A");
-                strcpy(dst_str, "N/A");
-            }
-
-            fprintf(out, "[%s] %s:%u -> %s:%u (len=%u)\n",
-                    entry->protocol_name,
-                    src_str, entry->src_port,
-                    dst_str, entry->dst_port,
-                    entry->packet_length);
-        }
-
-        // Очистка буфера после вывода
+        db_writer_insert_batch(buf->entries, buf->count);
         free(buf->entries);
         free(buf);
     }
+    db_writer_close();
     return NULL;
 }
 
@@ -168,7 +146,7 @@ void flush_queue_destroy(FlushQueue *fq) {
 int main(int argc, char *argv[]) {
     CaptureOptions opts;
     if(parse_args(argc, argv, &opts) != 0) {
-        fprintf(stderr, "Использование: %s -f <pcap> | -i <iface> [-o log] [-b 'bpf']\n", argv[0]);
+        fprintf(stderr, "Использование: %s -f <pcap> | -i <iface> [-b 'bpf']\n", argv[0]);
         return EXIT_FAILURE;
     }
     char errbuf[PCAP_ERRBUF_SIZE];
@@ -239,7 +217,7 @@ int main(int argc, char *argv[]) {
         pthread_join(threads[i], NULL);
     }
 
-    // Финальный flush всех потоков в очередь (ВАШ ФРАГМЕНТ)
+    // Финальный flush всех потоков в очередь
     for (int i = 0; i < THREAD_COUNT; ++i) {
         pthread_mutex_lock(&ndpi_infos[i].results_mutex);
         if (ndpi_infos[i].result_count > 0) {

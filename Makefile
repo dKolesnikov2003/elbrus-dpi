@@ -2,7 +2,7 @@
 CC ?= gcc
 CFLAGS ?= -O2 -Wall -pthread -std=c11 -D_DEFAULT_SOURCE -D_GNU_SOURCE
 LDFLAGS ?= -pthread
-LDLIBS ?= -lpcap -lndpi 
+LDLIBS ?= -lpcap -lndpi -lsqlite3
 
 # Если используем компилятор MCST LCC (Эльбрус), можно указать оптимизацию под архитектуру:
 # Пример: CFLAGS += -mtune=elbrus-8c
