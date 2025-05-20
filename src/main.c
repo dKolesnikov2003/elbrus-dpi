@@ -125,7 +125,7 @@ void* db_flusher_thread(void *arg) {
     // Имя БД (или получите из параметров/глобальной переменной)
     static int db_initialized = 0;
     if(!db_initialized) {
-        db_writer_init("results.db");
+        db_writer_init("data/results.db");
         db_initialized = 1;
     }
 
