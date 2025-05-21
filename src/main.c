@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <pthread.h>
+#include <sys/stat.h>	
 
 #include "config.h"
 #include "capture.h"
@@ -16,9 +17,29 @@ static pthread_t threads[THREAD_COUNT];
 int main(int argc, char *argv[]) {
     CaptureOptions opts;
     if(parse_args(argc, argv, &opts) != 0) {
-        fprintf(stderr, "Использование: %s -f <pcap> | -i <iface> [-b 'bpf']\n", argv[0]);
+        fprintf(stderr, "Использование: %s -f <pcap> | -i <iface> [-b 'bpf'] [-d 'database.file']\n", argv[0]);
         return EXIT_FAILURE;
     }
+    char db_path[256];
+    snprintf(db_path, sizeof(db_path), "data/%s", opts.db_name);
+    mkdir("data", 0755);         
+
+   time_t now    = time(NULL);
+   struct tm tm  = *localtime(&now);
+   char datebuf[32];
+   strftime(datebuf, sizeof(datebuf), "%Y-%m-%d_%H-%M-%S", &tm);
+
+   const char *src_base = basename((char *)opts.source); 
+   char table_name[128];
+   snprintf(table_name, sizeof(table_name),
+            "%c-%s-%s",
+            (opts.mode == CAP_SRC_FILE ? 'f' : 'i'),
+            src_base, datebuf);
+
+   if (db_writer_init(db_path, table_name) != 0) {
+       fprintf(stderr, "Не удалось открыть/создать БД '%s'\n", db_path);
+       return EXIT_FAILURE;
+   }
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t *pcap_handle = capture_init(&opts, errbuf, sizeof(errbuf), NULL);
     if(pcap_handle == NULL) {

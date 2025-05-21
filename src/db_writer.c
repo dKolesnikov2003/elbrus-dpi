@@ -5,16 +5,11 @@
 #include <arpa/inet.h>
 
 static sqlite3 *db = NULL;
+static char     tbl[128];
 
 void* db_flusher_thread(void *arg) {
     FlushQueue *fq = (FlushQueue*)arg;
     FlushBuffer *buf;
-
-    static int db_initialized = 0;
-    if(!db_initialized) {
-        db_writer_init("data/results.db");
-        db_initialized = 1;
-    }
 
     while ((buf = flush_queue_pop(fq)) != NULL) {
         db_writer_insert_batch(buf->entries, buf->count);
@@ -25,25 +20,33 @@ void* db_flusher_thread(void *arg) {
     return NULL;
 }
 
-int db_writer_init(const char *db_filename) {
-    if(sqlite3_open(db_filename, &db) != SQLITE_OK) {
+int db_writer_init(const char *db_filename, const char *table_name)
+{
+    if (sqlite3_open(db_filename, &db) != SQLITE_OK) {
         fprintf(stderr, "Ошибка открытия SQLite: %s\n", sqlite3_errmsg(db));
         return -1;
     }
-    const char *create_table_sql =
-        "CREATE TABLE IF NOT EXISTS packet_log ("
-        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "ip_version INTEGER,"
-        "src_addr TEXT,"
-        "dst_addr TEXT,"
-        "src_port INTEGER,"
-        "dst_port INTEGER,"
-        "packet_length INTEGER,"
-        "protocol_name TEXT,"
-        "timestamp INTEGER"
-        ");";
+
+    strncpy(tbl, table_name, sizeof(tbl) - 1);
+    tbl[sizeof(tbl) - 1] = '\0';
+
+    /* формируем CREATE TABLE IF NOT EXISTS "tbl" (...) */
+    char create_sql[512];
+    snprintf(create_sql, sizeof(create_sql),
+             "CREATE TABLE IF NOT EXISTS \"%s\" ("
+             "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+             "timestamp_ms INTEGER,"
+             "ip_version INTEGER,"
+             "src_addr TEXT,"
+             "dst_addr TEXT,"
+             "src_port INTEGER,"
+             "dst_port INTEGER,"
+             "packet_length INTEGER,"
+             "protocol_name TEXT);",
+             tbl);
+
     char *errmsg = NULL;
-    if(sqlite3_exec(db, create_table_sql, NULL, NULL, &errmsg) != SQLITE_OK) {
+    if (sqlite3_exec(db, create_sql, NULL, NULL, &errmsg) != SQLITE_OK) {
         fprintf(stderr, "Ошибка создания таблицы: %s\n", errmsg);
         sqlite3_free(errmsg);
         return -1;
@@ -53,10 +56,14 @@ int db_writer_init(const char *db_filename) {
 
 int db_writer_insert_batch(const PacketLogEntry *entries, size_t count) {
     if(db == NULL) return -1;
-    const char *insert_sql =
-        "INSERT INTO packet_log "
-        "(ip_version, src_addr, dst_addr, src_port, dst_port, packet_length, protocol_name, timestamp) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
+    char insert_sql[512];
+    snprintf(insert_sql, sizeof(insert_sql),
+            "INSERT INTO \"%s\" "
+            "(timestamp_ms, ip_version, src_addr, dst_addr, "
+            "src_port, dst_port, packet_length, protocol_name) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?);",
+            tbl);
+
     sqlite3_stmt *stmt;
     if(sqlite3_prepare_v2(db, insert_sql, -1, &stmt, NULL) != SQLITE_OK) {
         fprintf(stderr, "Ошибка подготовки запроса: %s\n", sqlite3_errmsg(db));

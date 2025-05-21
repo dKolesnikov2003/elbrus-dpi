@@ -10,6 +10,7 @@ typedef struct {
     CaptureMode mode;       /* файл или интерфейс */
     const char *source;     /* имя pcap или интерфейса */
     const char *bpf;        /* -b фильтр (опц.) */
+    const char *db_name;    /* имя файла БД внутри data/ */
 } CaptureOptions;
 
 typedef struct {

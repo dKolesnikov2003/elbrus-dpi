@@ -24,6 +24,7 @@ static void default_sigint_handler(int signo) {
 int parse_args(int argc, char **argv, CaptureOptions *opt) {
     memset(opt, 0, sizeof(*opt));
     opt->mode = -1;
+    opt->db_name = "results.db";
     signal(SIGINT, default_sigint_handler);
     for(int i = 1; i < argc; ++i) {
         if(strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--file") == 0) {
@@ -37,6 +38,9 @@ int parse_args(int argc, char **argv, CaptureOptions *opt) {
         } else if(strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--bpf") == 0) {
             if(++i >= argc) { fprintf(stderr, "-b требует аргумент\n"); return -1; }
             opt->bpf = argv[i];
+        } else if(strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--db") == 0) {
+            if(++i >= argc) { fprintf(stderr, "-d требует аргумент\n"); return -1; }
+            opt->db_name = argv[i];
         } else {
             fprintf(stderr, "Неизвестный параметр: %s\n", argv[i]);
             return -1;
