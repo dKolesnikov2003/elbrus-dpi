@@ -455,6 +455,9 @@ void *packet_processor_thread(void *arg) {
         // Копируем имя протокола в структуру (оно может быть константой в nDPI, но скопируем для независимости)
         strncpy(entry.protocol_name, proto_name, sizeof(entry.protocol_name) - 1);
         entry.protocol_name[sizeof(entry.protocol_name) - 1] = '\0';
+        entry.timestamp_ms  = (uint64_t)item.header.ts.tv_sec * 1000
+                            + item.header.ts.tv_usec / 1000;
+
         // Добавляем запись в список результатов потока
         add_result_entry(info, &entry);
 

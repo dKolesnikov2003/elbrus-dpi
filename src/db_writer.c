@@ -39,7 +39,8 @@ int db_writer_init(const char *db_filename) {
         "src_port INTEGER,"
         "dst_port INTEGER,"
         "packet_length INTEGER,"
-        "protocol_name TEXT"
+        "protocol_name TEXT,"
+        "timestamp INTEGER"
         ");";
     char *errmsg = NULL;
     if(sqlite3_exec(db, create_table_sql, NULL, NULL, &errmsg) != SQLITE_OK) {
@@ -54,8 +55,8 @@ int db_writer_insert_batch(const PacketLogEntry *entries, size_t count) {
     if(db == NULL) return -1;
     const char *insert_sql =
         "INSERT INTO packet_log "
-        "(ip_version, src_addr, dst_addr, src_port, dst_port, packet_length, protocol_name) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?);";
+        "(ip_version, src_addr, dst_addr, src_port, dst_port, packet_length, protocol_name, timestamp) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt *stmt;
     if(sqlite3_prepare_v2(db, insert_sql, -1, &stmt, NULL) != SQLITE_OK) {
         fprintf(stderr, "Ошибка подготовки запроса: %s\n", sqlite3_errmsg(db));
@@ -88,6 +89,7 @@ int db_writer_insert_batch(const PacketLogEntry *entries, size_t count) {
         sqlite3_bind_int(stmt, 5, entry->dst_port);
         sqlite3_bind_int(stmt, 6, entry->packet_length);
         sqlite3_bind_text(stmt, 7, entry->protocol_name, -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, 8, entry->timestamp_ms);
 
         if(sqlite3_step(stmt) != SQLITE_DONE) {
             fprintf(stderr, "Ошибка вставки: %s\n", sqlite3_errmsg(db));

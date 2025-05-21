@@ -39,18 +39,13 @@ typedef struct {
 // Структура записи в итоговом логе
 typedef struct {
     uint8_t ip_version;
-    union {
-        struct in_addr v4;
-        struct in6_addr v6;
-    } ip_src;
-    union {
-        struct in_addr v4;
-        struct in6_addr v6;
-    } ip_dst;
+    union { struct in_addr v4; struct in6_addr v6; } ip_src;
+    union { struct in_addr v4; struct in6_addr v6; } ip_dst;
     uint16_t src_port;
     uint16_t dst_port;
     uint32_t packet_length;
-    char protocol_name[64];  // Название обнаруженного протокола (например, "HTTP")
+    uint64_t timestamp_ms;    
+    char protocol_name[64];
 } PacketLogEntry;
 
 typedef struct FlushBuffer {
