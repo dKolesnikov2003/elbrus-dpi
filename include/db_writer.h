@@ -4,6 +4,9 @@
 #include <stddef.h>
 #include "packet_processor.h"
 
+// Потоковая функция для записи в БД
+void* db_flusher_thread(void *arg); 
+
 // Инициализация базы данных (создаёт таблицу, если нужно)
 int db_writer_init(const char *db_filename);
 

@@ -13,30 +13,6 @@
 static ThreadParam thread_params[THREAD_COUNT];
 static pthread_t threads[THREAD_COUNT];
 
-void* db_flusher_thread(void *arg) {
-    FlushQueue *fq = (FlushQueue*)arg;
-    FlushBuffer *buf;
-
-    static int db_initialized = 0;
-    if(!db_initialized) {
-        db_writer_init("data/results.db");
-        db_initialized = 1;
-    }
-
-    while ((buf = flush_queue_pop(fq)) != NULL) {
-        db_writer_insert_batch(buf->entries, buf->count);
-        free(buf->entries);
-        free(buf);
-    }
-    db_writer_close();
-    return NULL;
-}
-
-void flush_queue_destroy(FlushQueue *fq) {
-    pthread_mutex_destroy(&fq->mutex);
-    pthread_cond_destroy(&fq->cond_nonempty);
-}
-
 int main(int argc, char *argv[]) {
     CaptureOptions opts;
     if(parse_args(argc, argv, &opts) != 0) {
@@ -105,8 +81,9 @@ int main(int argc, char *argv[]) {
             flush_queue_push(&flush_queue, flush_buf);
             ndpi_infos[i].results = NULL;
             ndpi_infos[i].result_count = 0;
-        } else {
+        } else if (ndpi_infos[i].results != NULL) {
             free(ndpi_infos[i].results);
+            ndpi_infos[i].results = NULL; 
         }
         pthread_mutex_unlock(&ndpi_infos[i].results_mutex);
     }
@@ -117,9 +94,9 @@ int main(int argc, char *argv[]) {
     // Ожидаем завершения потока-сбросчика
     pthread_join(flusher_thread, NULL);
 
-    // Освобождаем ресурсы: освобождаем память, закрываем pcap
-
-    flush_queue_destroy(&flush_queue);
+    // Освобождаем ресурсы
+    pthread_mutex_destroy(&flush_queue.mutex);
+    pthread_cond_destroy(&flush_queue.cond_nonempty);
     for(int i = 0; i < THREAD_COUNT; ++i) {
         pthread_mutex_destroy(&ndpi_infos[i].results_mutex);
         free_thread_resources(&ndpi_infos[i]);

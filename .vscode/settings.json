@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "db_writer.h": "c"
+        "db_writer.h": "c",
+        "inet.h": "c",
+        "packet_processor.h": "c"
     }
 }

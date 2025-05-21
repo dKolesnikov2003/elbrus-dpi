@@ -6,6 +6,25 @@
 
 static sqlite3 *db = NULL;
 
+void* db_flusher_thread(void *arg) {
+    FlushQueue *fq = (FlushQueue*)arg;
+    FlushBuffer *buf;
+
+    static int db_initialized = 0;
+    if(!db_initialized) {
+        db_writer_init("data/results.db");
+        db_initialized = 1;
+    }
+
+    while ((buf = flush_queue_pop(fq)) != NULL) {
+        db_writer_insert_batch(buf->entries, buf->count);
+        free(buf->entries);
+        free(buf);
+    }
+    db_writer_close();
+    return NULL;
+}
+
 int db_writer_init(const char *db_filename) {
     if(sqlite3_open(db_filename, &db) != SQLITE_OK) {
         fprintf(stderr, "Ошибка открытия SQLite: %s\n", sqlite3_errmsg(db));

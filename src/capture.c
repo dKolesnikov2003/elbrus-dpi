@@ -2,10 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <unistd.h>
+#include <net/if.h>
 #include <pcap.h>
+
 #include "capture.h"
-#include "packet_processor.h"
 #include "config.h"
+#include "packet_processor.h"
 
 static volatile sig_atomic_t stop_capture = 0;
 static pcap_t *g_pcap_handle = NULL;
@@ -13,12 +16,15 @@ static pcap_t *g_pcap_handle = NULL;
 static void default_sigint_handler(int signo) {
     (void)signo;
     stop_capture = 1;
+    const char *msg = "\nПрерывание захвата (Ctrl+C)...\n";
+    write(STDERR_FILENO, msg, strlen(msg));
     if(g_pcap_handle) pcap_breakloop(g_pcap_handle);
 }
 
 int parse_args(int argc, char **argv, CaptureOptions *opt) {
     memset(opt, 0, sizeof(*opt));
     opt->mode = -1;
+    signal(SIGINT, default_sigint_handler);
     for(int i = 1; i < argc; ++i) {
         if(strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--file") == 0) {
             if(++i >= argc) { fprintf(stderr, "-f требует аргумент\n"); return -1; }
@@ -50,11 +56,6 @@ pcap_t *capture_init(const CaptureOptions *opt, char *errbuf, size_t errbuf_len,
         pcap_handle = pcap_open_offline(opt->source, errbuf);
     } else if(opt->mode == CAP_SRC_IFACE) {
         pcap_handle = pcap_open_live(opt->source, 65535, 1, 1000, errbuf);
-        if(sigint_handler)
-            signal(SIGINT, sigint_handler);
-        else
-            signal(SIGINT, default_sigint_handler);
-
         if(opt->bpf && pcap_handle) {
             struct bpf_program prog;
             if(pcap_compile(pcap_handle, &prog, opt->bpf, 1, PCAP_NETMASK_UNKNOWN) == -1 ||
@@ -63,6 +64,11 @@ pcap_t *capture_init(const CaptureOptions *opt, char *errbuf, size_t errbuf_len,
             }
             pcap_freecode(&prog);
         }
+    }
+    if(opt->mode == CAP_SRC_FILE && !access(opt->source, F_OK)) {
+        fprintf(stdout, "Захват из файла: %s\n", opt->source);
+    } else if(opt->mode == CAP_SRC_IFACE && if_nametoindex(opt->source)) {
+        fprintf(stdout, "Захват с интерфейса: %s\n", opt->source);
     }
     g_pcap_handle = pcap_handle;
     return pcap_handle;
@@ -73,10 +79,11 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
     const u_char *pkt_data;
     int status;
     uint64_t packet_count = 0;
-    // Читаем пакеты из pcap файла по одному
+    // Читаем пакеты по одному
     while((status = pcap_next_ex(pcap, &header, &pkt_data)) >= 0) {
         if(status == 0) continue;
-        packet_count++;
+        else if(status == -1) return -1;
+        packet_count++;       
         u_char *data_copy = (u_char*)malloc(header->caplen);
         if(data_copy == NULL) {
             fprintf(stderr, "Ошибка: недостаточно памяти для копирования пакета\n");
@@ -89,13 +96,7 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
         item.data = data_copy;
         enqueue_packet(&queues[thread_id], item);
     }
-    if(status == PCAP_ERROR_BREAK || stop_capture) {
-        fprintf(stderr, "Захват прерван: %s\n", pcap_geterr(pcap));
-        return -1;
-    } else if(status == -1) {
-        fprintf(stderr, "Ошибка pcap: %s\n", pcap_geterr(pcap));
-        return -1;
-    }
+
     return 0;
 }
 

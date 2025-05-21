@@ -1,6 +1,6 @@
 # Компилятор и флаги компиляции
 CC ?= gcc
-CFLAGS ?= -O2 -Wall -pthread -std=c11 -D_DEFAULT_SOURCE -D_GNU_SOURCE
+CFLAGS ?= -O2 -Wall -pthread -std=c11 -D_DEFAULT_SOURCE -D_GNU_SOURCE -fsanitize=address
 LDFLAGS ?= -pthread
 LDLIBS ?= -lpcap -lndpi -lsqlite3
 

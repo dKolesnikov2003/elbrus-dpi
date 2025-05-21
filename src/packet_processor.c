@@ -9,6 +9,11 @@
 #include <netinet/udp.h>
 #include "config.h"
 
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
+
 // Константы для хеш-таблицы потоков в каждом потоке
 #define FLOW_HASH_SIZE 8192  // размер таблицы хеширования потоков (должна быть степенью 2 для эффективности)
 
@@ -98,8 +103,8 @@ void free_thread_resources(NDPI_ThreadInfo *info) {
         while(node) {
             FlowNode *next = node->next;
             if(node->ndpi_flow) {
-                ndpi_flow_free(node->ndpi_flow); // освободить внутренние ресурсы flow
-                free(node->ndpi_flow);          // освободить память под структуру потока
+                ndpi_flow_free(node->ndpi_flow);   /* освобождает и вложенные данные, и саму struct ndpi_flow */
+                node->ndpi_flow = NULL;            /* ← обнуляем, чтобы исключить случайные повторные вызовы */
             }
             free(node);
             node = next;
