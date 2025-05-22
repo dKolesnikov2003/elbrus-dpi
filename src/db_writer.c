@@ -88,15 +88,15 @@ int db_writer_insert_batch(const PacketLogEntry *entries, size_t count) {
             strcpy(src_addr, "N/A");
             strcpy(dst_addr, "N/A");
         }
-
-        sqlite3_bind_int(stmt, 1, entry->ip_version);
-        sqlite3_bind_text(stmt, 2, src_addr, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 3, dst_addr, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int(stmt, 4, entry->src_port);
-        sqlite3_bind_int(stmt, 5, entry->dst_port);
-        sqlite3_bind_int(stmt, 6, entry->packet_length);
-        sqlite3_bind_text(stmt, 7, entry->protocol_name, -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int64(stmt, 8, entry->timestamp_ms);
+       
+        sqlite3_bind_int64(stmt, 1, entry->timestamp_ms);
+        sqlite3_bind_int   (stmt, 2, entry->ip_version);
+        sqlite3_bind_text  (stmt, 3, src_addr,       -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text  (stmt, 4, dst_addr,       -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int   (stmt, 5, entry->src_port);
+        sqlite3_bind_int   (stmt, 6, entry->dst_port);
+        sqlite3_bind_int   (stmt, 7, entry->packet_length);
+        sqlite3_bind_text  (stmt, 8, entry->protocol_name, -1, SQLITE_TRANSIENT);
 
         if(sqlite3_step(stmt) != SQLITE_DONE) {
             fprintf(stderr, "Ошибка вставки: %s\n", sqlite3_errmsg(db));
