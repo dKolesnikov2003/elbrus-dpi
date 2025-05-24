@@ -23,7 +23,7 @@ static void default_sigint_handler(int signo) {
 
 int parse_args(int argc, char **argv, CaptureOptions *opt) {
     memset(opt, 0, sizeof(*opt));
-    opt->mode = -1;
+    opt->mode = UNDEFINED;
     opt->db_name = "results.db";
     signal(SIGINT, default_sigint_handler);
     for(int i = 1; i < argc; ++i) {
@@ -46,7 +46,7 @@ int parse_args(int argc, char **argv, CaptureOptions *opt) {
             return -1;
         }
     }
-    if(opt->mode == -1) {
+    if(opt->mode == UNDEFINED) {
         fprintf(stderr, "Обязателен -f <pcap> или -i <iface>\n");
         return -1;
     }
@@ -54,6 +54,8 @@ int parse_args(int argc, char **argv, CaptureOptions *opt) {
 }
 
 pcap_t *capture_init(const CaptureOptions *opt, char *errbuf, size_t errbuf_len, void (*sigint_handler)(int)) {
+    (void)errbuf_len;
+    (void)sigint_handler;
     pcap_t *pcap_handle = NULL;
     errbuf[0] = 0;
     if(opt->mode == CAP_SRC_FILE) {

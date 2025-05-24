@@ -1,12 +1,12 @@
 CC      := gcc
 RM      := rm -f
-CFLAGS  := -I../../include -Wall -Wextra -O2 -D_DEFAULT_SOURCE -D_GNU_SOURCE -fsanitize=address
+CFLAGS  := -I../../include -Wall -Wextra -O2
 LDFLAGS := -L../../lib -lelbrus_dpi
-LIBS    := -lpcap -lpthread
+LIBS    := -lX11 -lpcap -lpthread
 
-SRC := eldpi_cli.c
+SRC := eldpi_gui.c
 OBJ := $(SRC:.c=.o)
-BIN := eldpi_cli
+BIN := eldpi_gui
 
 all: $(BIN)
 

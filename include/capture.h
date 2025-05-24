@@ -4,8 +4,7 @@
 #include <pcap.h>
 #include "packet_processor.h"
 
-typedef enum { CAP_SRC_FILE = 0, CAP_SRC_IFACE = 1 } CaptureMode;
-
+typedef enum { CAP_SRC_FILE = 0, CAP_SRC_IFACE = 1, UNDEFINED = -1} CaptureMode;
 typedef struct {
     CaptureMode mode;       /* файл или интерфейс */
     const char *source;     /* имя pcap или интерфейса */
