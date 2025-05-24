@@ -22,7 +22,6 @@ int main(int argc, char *argv[]) {
     }
     char db_path[256];
     snprintf(db_path, sizeof(db_path), "%s", opts.db_name);
-    mkdir("data", 0755);         
 
    time_t now    = time(NULL);
    struct tm tm  = *localtime(&now);

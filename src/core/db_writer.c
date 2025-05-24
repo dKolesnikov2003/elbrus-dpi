@@ -3,6 +3,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include <sys/stat.h>
+#include <libgen.h>    
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <errno.h>
+#include <limits.h>    
 
 static sqlite3 *db = NULL;
 static char     tbl[128];
@@ -20,13 +27,44 @@ void* db_flusher_thread(void *arg) {
     return NULL;
 }
 
+int mkdir_p(const char *path, mode_t mode) {
+    char *copypath = strdup(path);
+    char *pp = copypath;
+    char *sp;
+    int status = 0;
+
+    while ((sp = strchr(pp + 1, '/')) != NULL) {
+        *sp = '\0';
+        if (mkdir(copypath, mode) != 0) {
+            if (errno != EEXIST) { status = -1; break; }
+        }
+        *sp = '/';
+        pp = sp;
+    }
+    if (status == 0) {
+        if (mkdir(path, mode) != 0 && errno != EEXIST)
+            status = -1;
+    }
+    free(copypath);
+    return status;
+}
+
 int db_writer_init(const char *db_filename, const char *table_name)
 {
+    char *dup_path = strdup(db_filename);
+    char *dir = dirname(dup_path);
+
+    if (mkdir_p(dir, 0755) != 0) {
+        fprintf(stderr, "Не удалось создать каталог %s: %s\n", dir, strerror(errno));
+        free(dup_path);
+        return -1;
+    }
+    free(dup_path);
     if (sqlite3_open(db_filename, &db) != SQLITE_OK) {
         fprintf(stderr, "Ошибка открытия SQLite: %s\n", sqlite3_errmsg(db));
         return -1;
     }
-
+    
     strncpy(tbl, table_name, sizeof(tbl) - 1);
     tbl[sizeof(tbl) - 1] = '\0';
 
