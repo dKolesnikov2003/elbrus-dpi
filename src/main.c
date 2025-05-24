@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
     char db_path[256];
-    snprintf(db_path, sizeof(db_path), "data/%s", opts.db_name);
+    snprintf(db_path, sizeof(db_path), "%s", opts.db_name);
     mkdir("data", 0755);         
 
    time_t now    = time(NULL);
