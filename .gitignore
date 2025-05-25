@@ -1,4 +1,12 @@
+# Object files
+*.o
 obj/
+**/obj/
+
+# Shared libraries
+lib/
+*.so
+
 data/
 .vscode/
 elbrus-dpi

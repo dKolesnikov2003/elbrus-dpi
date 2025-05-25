@@ -24,7 +24,7 @@ static void default_sigint_handler(int signo) {
 int parse_args(int argc, char **argv, CaptureOptions *opt) {
     memset(opt, 0, sizeof(*opt));
     opt->mode = -1;
-    opt->db_name = "results.db";
+    opt->db_name = DEFAULT_DB_FILENAME;
     signal(SIGINT, default_sigint_handler);
     for(int i = 1; i < argc; ++i) {
         if(strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--file") == 0) {

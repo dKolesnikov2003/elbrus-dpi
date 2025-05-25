@@ -26,4 +26,4 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 
 .PHONY: clean
 clean:
-	rm -rf $(OBJ_DIR) $(TARGET) $(DB_DIR)
+	rm -rf $(OBJ_DIR) $(TARGET)

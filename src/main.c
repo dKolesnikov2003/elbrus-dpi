@@ -17,12 +17,11 @@ static pthread_t threads[THREAD_COUNT];
 int main(int argc, char *argv[]) {
     CaptureOptions opts;
     if(parse_args(argc, argv, &opts) != 0) {
-        fprintf(stderr, "Использование: %s -f <pcap> | -i <iface> [-b 'bpf'] [-d 'database.file']\n", argv[0]);
+        fprintf(stderr, "Использование: %s -f <pcap> | -i <iface> [-b 'bpf'] [-d 'file.db']\n", argv[0]);
         return EXIT_FAILURE;
     }
-    char db_path[256];
-    snprintf(db_path, sizeof(db_path), "%s", opts.db_name);
-    mkdir("data", 0755);         
+    char db_name[256];
+    snprintf(db_name, sizeof(db_name), "%s%s", DB_PATH, opts.db_name);       
 
    time_t now    = time(NULL);
    struct tm tm  = *localtime(&now);
@@ -36,8 +35,8 @@ int main(int argc, char *argv[]) {
             (opts.mode == CAP_SRC_FILE ? 'f' : 'i'),
             src_base, datebuf);
 
-   if (db_writer_init(db_path, table_name) != 0) {
-       fprintf(stderr, "Не удалось открыть/создать БД '%s'\n", db_path);
+   if (db_writer_init(db_name, table_name) != 0) {
+       fprintf(stderr, "Не удалось открыть/создать БД '%s'\n", db_name);
        return EXIT_FAILURE;
    }
     char errbuf[PCAP_ERRBUF_SIZE];
