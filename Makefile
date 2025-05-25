@@ -1,29 +1,62 @@
-# Компилятор и флаги компиляции
-CC ?= gcc
-CFLAGS ?= -O2 -Wall -pthread -std=c11 -D_DEFAULT_SOURCE -D_GNU_SOURCE -fsanitize=address
-LDFLAGS ?= -pthread
-LDLIBS ?= -lpcap -lndpi -lsqlite3
+CC      ?= gcc
+CFLAGS  ?= -O2 -Wall -pthread -std=c11 -D_DEFAULT_SOURCE -D_GNU_SOURCE \
+           -fsanitize=address -fPIC -Iinclude
+LDFLAGS ?= -pthread -fsanitize=address
+LDLIBS  ?= -lpcap -lndpi -lsqlite3
 
-# Структура каталогов
-SRC_DIR := src
-INC_DIR := include
-OBJ_DIR := obj
-DB_DIR := data
+# ── Каталоги ────────────────────────────────────────────────────────────────────
+SRC_DIR_CORE := src/core
+SRC_DIR_CLI  := src/cli
 
-# Файлы исходников
-SRCS := $(wildcard $(SRC_DIR)/*.c)
-OBJS := $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
-TARGET := elbrus-dpi
+OBJ_DIR      := obj
+OBJ_DIR_CORE := $(OBJ_DIR)/core
+OBJ_DIR_CLI  := $(OBJ_DIR)/cli
 
-# Правила сборки
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o $@ $(LDFLAGS) $(LDLIBS)
+LIB_DIR      := lib
+BIN_DIR      := bin
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	@mkdir -p $(OBJ_DIR)
-	@mkdir -p $(DB_DIR)
-	$(CC) $(CFLAGS) -I$(INC_DIR) -c $< -o $@
+# ── Файлы исходников / целей ───────────────────────────────────────────────────
+CORE_SRCS := $(wildcard $(SRC_DIR_CORE)/*.c)
+CORE_OBJS := $(patsubst $(SRC_DIR_CORE)/%.c,$(OBJ_DIR_CORE)/%.o,$(CORE_SRCS))
 
-.PHONY: clean
+CLI_SRC  := $(SRC_DIR_CLI)/el_dpi_cli.c
+CLI_OBJ  := $(OBJ_DIR_CLI)/el_dpi_cli.o
+
+LIB_TARGET := $(LIB_DIR)/libelbrus_dpi_api.so
+CLI_TARGET := $(BIN_DIR)/el_dpi_cli
+
+# ── Правила ────────────────────────────────────────────────────────────────────
+.PHONY: all library cli clean
+all: library cli
+library: $(LIB_TARGET)
+
+# Библиотека ──────
+LIB_TARGET := $(LIB_DIR)/libelbrus_dpi_api.so
+
+$(LIB_TARGET): $(CORE_OBJS) | $(LIB_DIR)
+	$(CC) -shared $(LDFLAGS) -o $@ $^ $(LDLIBS)
+
+$(LIB_DIR):
+	mkdir -p $@
+
+# CLI-утилита ─────
+cli: $(CLI_TARGET)
+
+$(CLI_TARGET): $(CLI_OBJ) $(LIB_TARGET) | $(BIN_DIR)
+	$(CC) $(LDFLAGS) -o $@ $< -L$(LIB_DIR) -lelbrus_dpi_api $(LDLIBS) \
+	    -Wl,-rpath,'$$ORIGIN/../$(LIB_DIR)'
+
+# Компиляция .c → .o (core + cli) ─────
+$(OBJ_DIR_CORE)/%.o: $(SRC_DIR_CORE)/%.c | $(OBJ_DIR_CORE)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ_DIR_CLI)/%.o: $(SRC_DIR_CLI)/%.c | $(OBJ_DIR_CLI)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# ── Автоматическое создание нужных директорий ──────────────────────────────────
+$(OBJ_DIR_CORE) $(OBJ_DIR_CLI) $(BIN_DIR):
+	mkdir -p $@
+
+# ── Очистка ────────────────────────────────────────────────────────────────────
 clean:
-	rm -rf $(OBJ_DIR) $(TARGET)
+	rm -rf $(OBJ_DIR) $(LIB_DIR) $(BIN_DIR)

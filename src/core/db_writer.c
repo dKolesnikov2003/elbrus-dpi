@@ -26,7 +26,7 @@ void* db_flusher_thread(void *arg) {
 int db_writer_init(const CaptureOptions *opts)
 {   
     char db_full_path[256];
-    snprintf(db_full_path, sizeof(db_full_path), "%s%s", DB_PATH, opts->db_name);       
+    snprintf(db_full_path, sizeof(db_full_path), "%s", opts->db_name);       
 
     time_t now    = time(NULL);
     struct tm tm  = *localtime(&now);
@@ -39,7 +39,7 @@ int db_writer_init(const CaptureOptions *opts)
                 "%c-%s-%s",
                 (opts->mode == CAP_SRC_FILE ? 'f' : 'i'),
                 src_base, datebuf);
-
+    
     if (sqlite3_open(db_full_path, &db) != SQLITE_OK) {
         fprintf(stderr, "Ошибка открытия SQLite: %s\n", sqlite3_errmsg(db));
         return -1;

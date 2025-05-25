@@ -2,6 +2,8 @@
 #define CAPTURE_H
 
 #include <pcap.h>
+
+#include "elbrus_dpi_api.h"
 #include "packet_processor.h"
 
 typedef struct {

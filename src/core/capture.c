@@ -8,6 +8,7 @@
 
 #include "capture.h"
 #include "config.h"
+#include "elbrus_dpi_api.h"
 #include "packet_processor.h"
 
 static volatile sig_atomic_t stop_capture = 0;
