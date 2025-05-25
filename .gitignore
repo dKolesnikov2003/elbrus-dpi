@@ -3,6 +3,9 @@
 obj/
 **/obj/
 
+bin/
+**/bin/
+
 # Shared libraries
 lib/
 *.so
