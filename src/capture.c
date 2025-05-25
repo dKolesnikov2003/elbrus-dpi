@@ -21,37 +21,7 @@ static void default_sigint_handler(int signo) {
     if(g_pcap_handle) pcap_breakloop(g_pcap_handle);
 }
 
-int parse_args(int argc, char **argv, CaptureOptions *opt) {
-    memset(opt, 0, sizeof(*opt));
-    opt->mode = -1;
-    opt->db_name = DEFAULT_DB_FILENAME;
-    signal(SIGINT, default_sigint_handler);
-    for(int i = 1; i < argc; ++i) {
-        if(strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--file") == 0) {
-            if(++i >= argc) { fprintf(stderr, "-f требует аргумент\n"); return -1; }
-            opt->mode = CAP_SRC_FILE;
-            opt->source = argv[i];
-        } else if(strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--interface") == 0) {
-            if(++i >= argc) { fprintf(stderr, "-i требует аргумент\n"); return -1; }
-            opt->mode = CAP_SRC_IFACE;
-            opt->source = argv[i];
-        } else if(strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--bpf") == 0) {
-            if(++i >= argc) { fprintf(stderr, "-b требует аргумент\n"); return -1; }
-            opt->bpf = argv[i];
-        } else if(strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--db") == 0) {
-            if(++i >= argc) { fprintf(stderr, "-d требует аргумент\n"); return -1; }
-            opt->db_name = argv[i];
-        } else {
-            fprintf(stderr, "Неизвестный параметр: %s\n", argv[i]);
-            return -1;
-        }
-    }
-    if(opt->mode == -1) {
-        fprintf(stderr, "Обязателен -f <pcap> или -i <iface>\n");
-        return -1;
-    }
-    return 0;
-}
+
 
 pcap_t *capture_init(const CaptureOptions *opt, char *errbuf, size_t errbuf_len, void (*sigint_handler)(int)) {
     pcap_t *pcap_handle = NULL;
@@ -75,6 +45,7 @@ pcap_t *capture_init(const CaptureOptions *opt, char *errbuf, size_t errbuf_len,
         fprintf(stdout, "Захват с интерфейса: %s\n", opt->source);
     }
     g_pcap_handle = pcap_handle;
+    signal(SIGINT, default_sigint_handler);
     return pcap_handle;
 }
 

@@ -14,16 +14,16 @@
 static ThreadParam thread_params[THREAD_COUNT];
 static pthread_t threads[THREAD_COUNT];
 
-int start_analysis(CaptureOptions opts)
+int start_analysis(const CaptureOptions *opts)
 {
     if (db_writer_init(opts) != 0)
     {
-        fprintf(stderr, "Не удалось открыть/создать БД '%s'\n", opts.db_name);
+        fprintf(stderr, "Не удалось открыть/создать БД '%s'\n", opts->db_name);
         return EXIT_FAILURE;
     }
 
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *pcap_handle = capture_init(&opts, errbuf, sizeof(errbuf), NULL);
+    pcap_t *pcap_handle = capture_init(opts, errbuf, sizeof(errbuf), NULL);
     if (pcap_handle == NULL)
     {
         fprintf(stderr, "pcap: %s\n", errbuf);
@@ -119,6 +119,38 @@ int start_analysis(CaptureOptions opts)
     return EXIT_SUCCESS;
 }
 
+int parse_args(int argc, char **argv, CaptureOptions *opt) {
+    memset(opt, 0, sizeof(*opt));
+    opt->mode = -1;
+    opt->db_name = DEFAULT_DB_FILENAME;
+    
+    for(int i = 1; i < argc; ++i) {
+        if(strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--file") == 0) {
+            if(++i >= argc) { fprintf(stderr, "-f требует аргумент\n"); return -1; }
+            opt->mode = CAP_SRC_FILE;
+            opt->source = argv[i];
+        } else if(strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--interface") == 0) {
+            if(++i >= argc) { fprintf(stderr, "-i требует аргумент\n"); return -1; }
+            opt->mode = CAP_SRC_IFACE;
+            opt->source = argv[i];
+        } else if(strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--bpf") == 0) {
+            if(++i >= argc) { fprintf(stderr, "-b требует аргумент\n"); return -1; }
+            opt->bpf = argv[i];
+        } else if(strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--db") == 0) {
+            if(++i >= argc) { fprintf(stderr, "-d требует аргумент\n"); return -1; }
+            opt->db_name = argv[i];
+        } else {
+            fprintf(stderr, "Неизвестный параметр: %s\n", argv[i]);
+            return -1;
+        }
+    }
+    if(opt->mode == -1) {
+        fprintf(stderr, "Обязателен -f <pcap> или -i <iface>\n");
+        return -1;
+    }
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     CaptureOptions opts;
@@ -128,5 +160,5 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    return start_analysis(opts);
+    return start_analysis(&opts);
 }

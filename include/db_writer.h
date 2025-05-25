@@ -9,7 +9,7 @@
 void* db_flusher_thread(void *arg); 
 
 // Инициализация базы данных (создаёт таблицу, если нужно)
-int db_writer_init(const CaptureOptions opts);
+int db_writer_init(const CaptureOptions *opts);
 
 // Сохраняет пачку записей в БД
 int db_writer_insert_batch(const PacketLogEntry *entries, size_t count);
