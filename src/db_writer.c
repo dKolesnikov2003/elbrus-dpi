@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <arpa/inet.h>
 
+#include "config.h"
+#include "capture.h"
+
 static sqlite3 *db = NULL;
 static char     tbl[128];
 
@@ -20,9 +23,24 @@ void* db_flusher_thread(void *arg) {
     return NULL;
 }
 
-int db_writer_init(const char *db_filename, const char *table_name)
-{
-    if (sqlite3_open(db_filename, &db) != SQLITE_OK) {
+int db_writer_init(const CaptureOptions opts)
+{   
+    char db_full_path[256];
+    snprintf(db_full_path, sizeof(db_full_path), "%s%s", DB_PATH, opts.db_name);       
+
+    time_t now    = time(NULL);
+    struct tm tm  = *localtime(&now);
+    char datebuf[32];
+    strftime(datebuf, sizeof(datebuf), "%Y-%m-%d_%H-%M-%S", &tm);
+
+    const char *src_base = basename((char *)opts.source); 
+    char table_name[128];
+    snprintf(table_name, sizeof(table_name),
+                "%c-%s-%s",
+                (opts.mode == CAP_SRC_FILE ? 'f' : 'i'),
+                src_base, datebuf);
+
+    if (sqlite3_open(db_full_path, &db) != SQLITE_OK) {
         fprintf(stderr, "Ошибка открытия SQLite: %s\n", sqlite3_errmsg(db));
         return -1;
     }
