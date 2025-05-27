@@ -14,9 +14,28 @@
 static ThreadParam thread_params[THREAD_COUNT];
 static pthread_t threads[THREAD_COUNT];
 
-char *get_default_db_path()
+static char db_path[512];
+
+const char *get_default_db_path(void)
 {
-    return DEFAULT_DB_PATH_AND_FILENAME;
+    const char *home = getenv("HOME");
+    if (!home) {
+        // HOME не задан — можно упасть или вернуть имя файла в текущей директории
+        return DEFAULT_DB_FILENAME;
+    }
+
+    // Формируем путь: /home/user/.local/share/elbrus-dpi/packets.db
+    int n = snprintf(db_path, sizeof(db_path), "%s/%s/%s",
+                     home,
+                     RELATIVE_DB_PATH,      // ".local/share/elbrus-dpi"
+                     DEFAULT_DB_FILENAME);  // "packets.db"
+
+    if (n < 0 || (size_t)n >= sizeof(db_path)) {
+        // Ошибка форматирования или обрезание строки
+        return DEFAULT_DB_FILENAME;
+    }
+
+    return db_path;
 }
 
 int start_analysis(const CaptureOptions *opts)

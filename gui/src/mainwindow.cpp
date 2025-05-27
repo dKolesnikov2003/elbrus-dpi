@@ -21,7 +21,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Open the SQLite database (using default path from DPI config)
     db = QSqlDatabase::addDatabase("QSQLITE");
-    QString dbPath = QString::fromUtf8("%1").arg(getenv("HOME")) + "/elbrus-dpi/data/packets.db";
+    // $HOME/.local/share/elbrus-dpi/packets.db
+    QString dbPath = QString::fromUtf8("%1").arg(getenv("HOME")) + "/.local/share/elbrus-dpi/packets.db";
     db.setDatabaseName(dbPath);
     if (!db.open()) {
         qWarning() << "Failed to open database:" << db.lastError().text();

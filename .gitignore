@@ -6,9 +6,14 @@ obj/
 bin/
 **/bin/
 
+libelbrus_dpi.a
+el-dpi-cli
+el-dpi-gui
+
 # Shared libraries
 lib/
 *.so
+*.a
 
 data/
 .vscode/

@@ -12,6 +12,6 @@ typedef struct {
 
 int start_analysis(const CaptureOptions *opts);
 
-char *get_default_db_path();
+const char *get_default_db_path();
 
 #endif // ELBRUS_DPI_API_H
