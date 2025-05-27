@@ -2,12 +2,12 @@
 CC      ?= gcc
 CFLAGS  ?= -O2 -Wall -pthread -std=c11 -D_DEFAULT_SOURCE -D_GNU_SOURCE -I../core/include
 LDFLAGS ?= -pthread
-LDLIBS  ?= ../core/libelbrus_dpi.a -lpcap -lndpi -lsqlite3
+LDLIBS  ?= ../core/libelbrus-dpi.a -lpcap -lndpi -lsqlite3
 
 # Пути
 SRCDIR  := src
 OBJDIR  := obj
-TARGET  := el_dpi_cli
+TARGET  := el-dpi-cli
 
 # Исходный и объектный файл
 SRC     := $(SRCDIR)/el_dpi_cli.c

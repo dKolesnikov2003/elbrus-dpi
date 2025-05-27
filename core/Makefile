@@ -8,7 +8,7 @@ LDLIBS  ?= -lpcap -lndpi -lsqlite3
 SRCDIR  := src
 INCDIR  := include
 OBJDIR  := obj
-TARGET  := libelbrus_dpi.a
+TARGET  := libelbrus-dpi.a
 
 # Все .c файлы из src/
 SRC     := $(wildcard $(SRCDIR)/*.c)
