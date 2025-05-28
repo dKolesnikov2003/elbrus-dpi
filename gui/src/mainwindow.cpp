@@ -34,6 +34,14 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Populate session (table) list and select the first session by default
     loadSessionData();
+    refreshTableView();                
+    
+    // Set up auto-refresh 1 second timer
+    refreshTimer = new QTimer(this);
+    refreshTimer->setInterval(1000); 
+    connect(refreshTimer, &QTimer::timeout,
+            this, &MainWindow::autoRefresh);
+    refreshTimer->start();
 }
 
 // Destructor
@@ -216,6 +224,11 @@ void MainWindow::onHeaderClicked(int section) {
         sortColumn = section;
         sortOrder = Qt::AscendingOrder;
     }
+    refreshTableView();
+}
+
+void MainWindow::autoRefresh()
+{
     refreshTableView();
 }
 

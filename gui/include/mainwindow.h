@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QSqlQueryModel>
 #include <QSqlDatabase>
+#include <QTimer> 
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -17,10 +18,11 @@ public:
     ~MainWindow();
 
 private slots:
-    void loadSessionData();       // Load data for the selected session (table)
-    void applyFilters();          // Apply filter criteria and refresh view
-    void onSessionChanged(int index); // Slot for when the session selection changes
-    void onHeaderClicked(int section); // Slot for sorting when a header is clicked
+    void loadSessionData();             // Load data for the selected session (table)
+    void applyFilters();                // Apply filter criteria and refresh view
+    void onSessionChanged(int index);   // Slot for when the session selection changes
+    void onHeaderClicked(int section);  // Slot for sorting when a header is clicked
+    void autoRefresh();                 // Slot for auto-refreshing the data view
 
 private:
     void setupUi();               // Set up all UI widgets and layout
@@ -34,5 +36,7 @@ private:
     QString filterProto;
     int sortColumn;
     Qt::SortOrder sortOrder;
+
+    QTimer *refreshTimer;         // Timer for auto-refresh functionality
 };
 #endif
