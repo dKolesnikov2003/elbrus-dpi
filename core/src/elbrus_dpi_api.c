@@ -19,19 +19,24 @@ const char *get_default_db_path(void)
     return DEFAULT_DB_PATH_AND_FILENAME;
 }
 
+const char *get_relative_db_path(void) 
+{
+    return RELATIVE_DB_PATH;
+}
+
 int start_analysis(const CaptureOptions *opts)
 {
-    if (db_writer_init(opts) != 0)
-    {
-        fprintf(stderr, "Не удалось открыть/создать БД '%s'\n", opts->db_name);
-        return EXIT_FAILURE;
-    }
-
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t *pcap_handle = capture_init(opts, errbuf, sizeof(errbuf), NULL);
     if (pcap_handle == NULL)
     {
         fprintf(stderr, "pcap: %s\n", errbuf);
+        return EXIT_FAILURE;
+    }
+
+    if (db_writer_init(opts) != 0)
+    {
+        fprintf(stderr, "Не удалось открыть/создать БД '%s'\n", opts->db_name);
         return EXIT_FAILURE;
     }
 

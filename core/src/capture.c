@@ -14,6 +14,8 @@
 static volatile sig_atomic_t stop_capture = 0;
 static pcap_t *g_pcap_handle = NULL;
 
+char file_and_table_name_pattern[128];
+
 static void default_sigint_handler(int signo) {
     (void)signo;
     stop_capture = 1;
@@ -42,7 +44,20 @@ pcap_t *capture_init(const CaptureOptions *opt, char *errbuf, size_t errbuf_len,
         fprintf(stdout, "Захват из файла: %s\n", opt->source);
     } else if(opt->mode == CAP_SRC_IFACE && if_nametoindex(opt->source)) {
         fprintf(stdout, "Захват с интерфейса: %s\n", opt->source);
-    }
+    }     
+
+    time_t now    = time(NULL);
+    struct tm tm  = *localtime(&now);
+    char datebuf[32];
+    strftime(datebuf, sizeof(datebuf), "%Y-%m-%d_%H-%M-%S", &tm);
+
+    const char *src_base = basename((char *)opt->source); 
+
+    snprintf(file_and_table_name_pattern, sizeof(file_and_table_name_pattern),
+                "%c-%s-%s",
+                (opt->mode == CAP_SRC_FILE ? 'f' : 'i'),
+                src_base, datebuf);
+
     g_pcap_handle = pcap_handle;
     signal(SIGINT, default_sigint_handler);
     return pcap_handle;
@@ -52,11 +67,16 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
     struct pcap_pkthdr *header;
     const u_char *pkt_data;
     int status;
-    pcap_dumper_t *dumper = pcap_dump_open(pcap, "raw.pcap");
+    
+    // Подготавлеваем имя файла для сохранения
+    char file_full_path[256];
+    snprintf(file_full_path, sizeof(file_full_path), "%s%s.pcap", get_relative_db_path(), file_and_table_name_pattern);
+    pcap_dumper_t *dumper = pcap_dump_open(pcap, file_full_path);
     if (dumper == NULL) {
         fprintf(stderr, "Не удалось открыть pcap файл для записи: %s\n", pcap_geterr(pcap));
         return -1;
     }
+
     uint64_t packet_count = 0;
     // Читаем пакеты по одному
     while((status = pcap_next_ex(pcap, &header, &pkt_data)) >= 0) {

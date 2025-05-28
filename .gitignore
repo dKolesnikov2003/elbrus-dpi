@@ -18,3 +18,4 @@ lib/
 data/
 .vscode/
 elbrus-dpi
+packets.db

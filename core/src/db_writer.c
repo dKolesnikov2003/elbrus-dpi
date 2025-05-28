@@ -28,18 +28,9 @@ int db_writer_init(const CaptureOptions *opts)
     char db_full_path[256];
     snprintf(db_full_path, sizeof(db_full_path), "%s", opts->db_name);       
 
-    time_t now    = time(NULL);
-    struct tm tm  = *localtime(&now);
-    char datebuf[32];
-    strftime(datebuf, sizeof(datebuf), "%Y-%m-%d_%H-%M-%S", &tm);
-
-    const char *src_base = basename((char *)opts->source); 
     char table_name[128];
-    snprintf(table_name, sizeof(table_name),
-                "%c-%s-%s",
-                (opts->mode == CAP_SRC_FILE ? 'f' : 'i'),
-                src_base, datebuf);
-    
+    snprintf(table_name, sizeof(table_name), "%s", file_and_table_name_pattern);
+
     if (sqlite3_open(db_full_path, &db) != SQLITE_OK) {
         fprintf(stderr, "Ошибка открытия SQLite: %s\n", sqlite3_errmsg(db));
         return -1;

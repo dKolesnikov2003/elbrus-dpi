@@ -6,6 +6,8 @@
 #include "elbrus_dpi_api.h"
 #include "packet_processor.h"
 
+extern char file_and_table_name_pattern[128];
+
 typedef struct {
     pcap_t *pcap_handle;
     PacketQueue *queues;
