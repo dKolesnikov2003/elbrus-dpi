@@ -20,7 +20,7 @@ OBJ     := $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SRC))
 all: $(TARGET)
 
 $(TARGET): $(OBJ)
-	@mkdir -p $(HOME)/.local/share/elbrus-dpi/
+	@mkdir -p /var/lib/eldpi/
 	$(AR) rcs $@ $^
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
