@@ -22,8 +22,6 @@ static void default_sigint_handler(int signo) {
     if(g_pcap_handle) pcap_breakloop(g_pcap_handle);
 }
 
-
-
 pcap_t *capture_init(const CaptureOptions *opt, char *errbuf, size_t errbuf_len, void (*sigint_handler)(int)) {
     pcap_t *pcap_handle = NULL;
     errbuf[0] = 0;
@@ -54,6 +52,11 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
     struct pcap_pkthdr *header;
     const u_char *pkt_data;
     int status;
+    pcap_dumper_t *dumper = pcap_dump_open(pcap, "raw.pcap");
+    if (dumper == NULL) {
+        fprintf(stderr, "Не удалось открыть pcap файл для записи: %s\n", pcap_geterr(pcap));
+        return -1;
+    }
     uint64_t packet_count = 0;
     // Читаем пакеты по одному
     while((status = pcap_next_ex(pcap, &header, &pkt_data)) >= 0) {
@@ -66,13 +69,15 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
             return -1;
         }
         memcpy(data_copy, pkt_data, header->caplen);
+        // Сохраняем пакет в pcap файл
+        pcap_dump((u_char *)dumper, header, pkt_data);
         int thread_id = select_thread_for_packet(data_copy, header->caplen);
         PacketQueueItem item;
         item.header = *header;
         item.data = data_copy;
         enqueue_packet(&queues[thread_id], item);
     }
-
+    pcap_dump_close(dumper);
     return 0;
 }
 
