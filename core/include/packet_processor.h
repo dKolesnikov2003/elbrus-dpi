@@ -48,7 +48,10 @@ typedef struct {
     char protocol_name[64];
 } PacketLogEntry;
 
+typedef enum { DPI_RES_ONLY = 0, RAW_DATA_IDX = 1 } FlushQueuePurpose;
+
 typedef struct FlushBuffer {
+    FlushQueuePurpose purpose; // цель очереди: только результаты или с индексами на сырые данные
     PacketLogEntry *entries;
     size_t count;
     struct FlushBuffer *next;
@@ -74,7 +77,7 @@ typedef struct {
     pthread_mutex_t results_mutex; 
 } NDPI_ThreadInfo;
 
-// Параметры, передаваемые в поток (определены в main.c)
+// Параметры, передаваемые в поток
 typedef struct {
     int thread_id;
     pcap_t *pcap_handle;

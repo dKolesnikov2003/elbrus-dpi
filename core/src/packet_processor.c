@@ -130,6 +130,7 @@ static void add_result_entry(NDPI_ThreadInfo *info, PacketLogEntry *entry) {
             return;
         }
 
+        flush_buf->purpose = DPI_RES_ONLY; // только результаты
         flush_buf->entries = info->results;
         flush_buf->count = info->result_count;
 
