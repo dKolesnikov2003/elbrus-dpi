@@ -1,0 +1,24 @@
+# Object files
+*.o
+obj/
+**/obj/
+
+# libraries
+lib/
+*.so
+*.a
+
+# Binaries
+bin/
+**/bin/
+libeldpi.a
+libeldpi
+libeldpi_debug
+libeldpi_debug.a
+eldpi-cli
+eldpi-cli-debug
+eldpi-gui
+eldpi-gui-debug
+
+.vscode/
+packets.db
