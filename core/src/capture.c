@@ -83,6 +83,13 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
         return -1;
     }
 
+    // Получаем FILE* из pcap_dumper_t*
+    FILE *fp = pcap_dump_file(dumper);
+    if (fp == NULL) {
+        fprintf(stderr, "Не удалось получить FILE* из pcap_dumper\n");
+        return -1;
+    }
+
     uint64_t packet_count = 0;
     // Читаем пакеты по одному
     while((status = pcap_next_ex(pcap, &header, &pkt_data)) >= 0) {
@@ -94,6 +101,16 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
             fprintf(stderr, "Ошибка: недостаточно памяти для копирования пакета\n");
             return -1;
         }
+        // Получаем текущее смещение в файле
+        int64_t offset = ftell(fp);
+        if (offset == -1L) {
+            perror("Ошибка при получении ftell");
+            return -1;
+        }
+
+        // offset содержит байтовое смещение — можно сохранить его в БД
+        printf("Offset: %ld\n", offset);
+        
         memcpy(data_copy, pkt_data, header->caplen);
         // Сохраняем пакет в pcap файл
         pcap_dump((u_char *)dumper, header, pkt_data);

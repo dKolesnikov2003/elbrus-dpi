@@ -10,7 +10,8 @@ extern char file_and_table_name_pattern[128];
 
 typedef struct {
     uint64_t timestamp_ms;
-    uint64_t offset; // смещение в файле pcap
+    int64_t offset; // смещение в файле pcap
+    int32_t packet_length;
 } RawDataIndexLogEntry;
 
 typedef struct {
