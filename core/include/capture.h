@@ -10,14 +10,14 @@ extern char file_and_table_name_pattern[128];
 
 typedef struct {
     uint64_t timestamp_ms;
-    int64_t offset; // смещение в файле pcap
+    int64_t pcap_file_offset; // смещение в файле pcap
     int32_t packet_length;
 } RawDataIndexLogEntry;
 
 typedef struct {
     pcap_t *pcap_handle;
     PacketQueue *queues;
-    RawDataIndexLogEntry *offsets; // динамический массив лог записей данного потока
+    RawDataIndexLogEntry *pcap_file_offsets; // динамический массив лог записей данного потока
     size_t result_count;
     size_t result_capacity;
     FlushQueue *flush_queue;

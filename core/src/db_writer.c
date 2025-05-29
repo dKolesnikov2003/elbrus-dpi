@@ -25,18 +25,26 @@ void* db_flusher_thread(void *arg) {
 
 int db_writer_init(const CaptureOptions *opts)
 {   
+    char *errmsg = NULL;
     char db_full_path[256];
     snprintf(db_full_path, sizeof(db_full_path), "%s", opts->db_name);       
 
-    char table_name[128];
-    snprintf(table_name, sizeof(table_name), "%s", file_and_table_name_pattern);
+    char table_1_name[128];
+    snprintf(table_1_name, sizeof(table_1_name), "%s", file_and_table_name_pattern);
 
     if (sqlite3_open(db_full_path, &db) != SQLITE_OK) {
         fprintf(stderr, "Ошибка открытия SQLite: %s\n", sqlite3_errmsg(db));
         return -1;
     }
 
-    strncpy(tbl, table_name, sizeof(tbl) - 1);
+    if (sqlite3_exec(db, "PRAGMA foreign_keys = ON;", 0, 0, &errmsg) != SQLITE_OK) {
+        fprintf(stderr, "Ошибка включения foreign keys: %s\n", errmsg);
+        sqlite3_free(errmsg);
+        sqlite3_close(db);
+        return 1;
+    }
+
+    strncpy(tbl, table_1_name, sizeof(tbl) - 1);
     tbl[sizeof(tbl) - 1] = '\0';
 
     /* формируем CREATE TABLE IF NOT EXISTS "tbl" (...) */
@@ -54,12 +62,37 @@ int db_writer_init(const CaptureOptions *opts)
              "protocol_name TEXT);",
              tbl);
 
-    char *errmsg = NULL;
     if (sqlite3_exec(db, create_sql, NULL, NULL, &errmsg) != SQLITE_OK) {
         fprintf(stderr, "Ошибка создания таблицы: %s\n", errmsg);
         sqlite3_free(errmsg);
         return -1;
     }
+
+    char table_2_name[132];
+    snprintf(table_2_name, sizeof(table_2_name), "%s_raw", file_and_table_name_pattern);
+    if (sqlite3_open(db_full_path, &db) != SQLITE_OK) {
+        fprintf(stderr, "Ошибка открытия SQLite: %s\n", sqlite3_errmsg(db));
+        return -1;
+    }
+
+    strncpy(tbl, table_2_name, sizeof(tbl) - 1);
+    tbl[sizeof(tbl) - 1] = '\0';
+
+    snprintf(create_sql, sizeof(create_sql),
+         "CREATE TABLE IF NOT EXISTS \"%s\" ("
+         "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+         "timestamp_ms INTEGER,"
+         "pcap_file_offset INTEGER,"
+         "packet_length INTEGER,"
+         "FOREIGN KEY (timestamp_ms) REFERENCES \"%s\"(timestamp_ms));",
+         tbl, table_1_name);
+
+    if (sqlite3_exec(db, create_sql, NULL, NULL, &errmsg) != SQLITE_OK) {
+        fprintf(stderr, "Ошибка создания таблицы: %s\n", errmsg);
+        sqlite3_free(errmsg);
+        return -1;
+    }
+
     return 0;
 }
 

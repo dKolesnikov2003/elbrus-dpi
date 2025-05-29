@@ -102,15 +102,14 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
             return -1;
         }
         // Получаем текущее смещение в файле
-        int64_t offset = ftell(fp);
-        if (offset == -1L) {
+        int64_t pcap_file_offset = ftell(fp);
+        if (pcap_file_offset == -1L) {
             perror("Ошибка при получении ftell");
             return -1;
         }
+        // pcap_file_offset содержит байтовое смещение — можно сохранить его в БД
+        printf("pcap_file_offset: %ld\n", pcap_file_offset);
 
-        // offset содержит байтовое смещение — можно сохранить его в БД
-        printf("Offset: %ld\n", offset);
-        
         memcpy(data_copy, pkt_data, header->caplen);
         // Сохраняем пакет в pcap файл
         pcap_dump((u_char *)dumper, header, pkt_data);
