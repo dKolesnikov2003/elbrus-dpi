@@ -170,9 +170,6 @@ int main(int argc, char *argv[]) {
         offset += ndpi_infos[i].result_count;
     }
 
-    // Сортируем результаты по имени протокола (алфавитно) для группировки по протоколам
-    qsort(all_results, total_results, sizeof(PacketLogEntry), compare_by_protocol);
-
     // Открываем файл лога, если указан, иначе будем писать в stdout
     FILE *out = stdout;
     if(log_filename != NULL) {

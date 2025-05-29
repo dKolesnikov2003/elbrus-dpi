@@ -1,4 +1,5 @@
 #include "packet_processor.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -438,103 +439,4 @@ void *packet_processor_thread(void *arg) {
     }
 
     return NULL;
-}
-
-// Инициализация очереди пакетов
-void init_queue(PacketQueue *q) {
-    q->capacity = 1024;  // начальный размер очереди
-    q->items = (PacketQueueItem*)malloc(q->capacity * sizeof(PacketQueueItem));
-    q->front = 0;
-    q->rear = 0;
-    q->count = 0;
-    pthread_mutex_init(&q->mutex, NULL);
-    pthread_cond_init(&q->cond_nonempty, NULL);
-    pthread_cond_init(&q->cond_nonfull, NULL);
-}
-
-// Уничтожение очереди пакетов (освобождение памяти и ресурсов синхронизации)
-void destroy_queue(PacketQueue *q) {
-    free(q->items);
-    pthread_mutex_destroy(&q->mutex);
-    pthread_cond_destroy(&q->cond_nonempty);
-    pthread_cond_destroy(&q->cond_nonfull);
-}
-
-// Поместить пакет в очередь (с блокировкой, если очередь заполнена)
-void enqueue_packet(PacketQueue *q, PacketQueueItem item) {
-    pthread_mutex_lock(&q->mutex);
-    // Если очередь полна, ждем освобождения места
-    while(q->count == q->capacity) {
-        pthread_cond_wait(&q->cond_nonfull, &q->mutex);
-    }
-    // Вставляем элемент в конец очереди
-    q->items[q->rear] = item;
-    q->rear = (q->rear + 1) % q->capacity;
-    q->count++;
-    // Сигнализируем, что очередь не пуста
-    pthread_cond_signal(&q->cond_nonempty);
-    pthread_mutex_unlock(&q->mutex);
-}
-
-// Извлечь пакет из очереди (блокируется, если очередь пуста)
-// Возвращает PacketQueueItem; если data == NULL, значит получен сигнал завершения
-PacketQueueItem dequeue_packet(PacketQueue *q) {
-    pthread_mutex_lock(&q->mutex);
-    // Ждем, пока в очереди появится элемент
-    while(q->count == 0) {
-        pthread_cond_wait(&q->cond_nonempty, &q->mutex);
-    }
-    // Берем элемент из начала очереди
-    PacketQueueItem item = q->items[q->front];
-    q->front = (q->front + 1) % q->capacity;
-    q->count--;
-    // Сигнализируем, что появилось свободное место
-    pthread_cond_signal(&q->cond_nonfull);
-    pthread_mutex_unlock(&q->mutex);
-    return item;
-}
-
-// Добавить в очередь специальный "терминатор", сигнализирующий о завершении ввода
-void enqueue_terminate(PacketQueue *q) {
-    PacketQueueItem term;
-    memset(&term, 0, sizeof(term));
-    term.data = NULL; // null-указатель будет признаком окончания
-    enqueue_packet(q, term);
-}
-
-// Функция сравнения для сортировки записей по имени протокола (алфавитно)
-int compare_by_protocol(const void *a, const void *b) {
-    const PacketLogEntry *entryA = (const PacketLogEntry*)a;
-    const PacketLogEntry *entryB = (const PacketLogEntry*)b;
-    // Сравниваем строки с именами протоколов
-    int cmp = strcmp(entryA->protocol_name, entryB->protocol_name);
-    if(cmp != 0) {
-        return cmp;
-    }
-    // Если протоколы одинаковые, для устойчивости сортировки можно сравнить IP или порты (не принципиально)
-    if(entryA->ip_version != entryB->ip_version) {
-        return entryA->ip_version - entryB->ip_version;
-    }
-    // Сравнение по исходному IP (для IPv4 и IPv6 отдельно)
-    if(entryA->ip_version == 4) {
-        if(entryA->ip_src.v4.s_addr != entryB->ip_src.v4.s_addr) {
-            return (entryA->ip_src.v4.s_addr < entryB->ip_src.v4.s_addr) ? -1 : 1;
-        }
-        if(entryA->ip_dst.v4.s_addr != entryB->ip_dst.v4.s_addr) {
-            return (entryA->ip_dst.v4.s_addr < entryB->ip_dst.v4.s_addr) ? -1 : 1;
-        }
-    } else if(entryA->ip_version == 6) {
-        int cmp6 = memcmp(&entryA->ip_src.v6, &entryB->ip_src.v6, sizeof(struct in6_addr));
-        if(cmp6 != 0) return cmp6;
-        cmp6 = memcmp(&entryA->ip_dst.v6, &entryB->ip_dst.v6, sizeof(struct in6_addr));
-        if(cmp6 != 0) return cmp6;
-    }
-    // Наконец сравним порты
-    if(entryA->src_port != entryB->src_port) {
-        return entryA->src_port - entryB->src_port;
-    }
-    if(entryA->dst_port != entryB->dst_port) {
-        return entryA->dst_port - entryB->dst_port;
-    }
-    return 0;
 }

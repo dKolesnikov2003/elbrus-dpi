@@ -3,26 +3,12 @@
 
 #include <stdint.h>
 #include <pthread.h>
+
 #include <pcap.h>
-#include <ndpi/ndpi_api.h>   // Заголовок библиотеки nDPI
+#include <ndpi/ndpi_api.h>
 
-// Структура для элемента очереди пакетов
-typedef struct {
-    struct pcap_pkthdr header;  // Заголовок pcap (время, длины)
-    u_char *data;               // Указатель на данные пакета (скопированный буфер)
-} PacketQueueItem;
+#include "packet_queue.h"
 
-// Очередь пакетов с поддержкой синхронизации между потоками
-typedef struct {
-    PacketQueueItem *items;
-    int capacity;
-    int front;
-    int rear;
-    int count;
-    pthread_mutex_t mutex;
-    pthread_cond_t cond_nonempty;
-    pthread_cond_t cond_nonfull;
-} PacketQueue;
 
 // Ключ (идентификатор) сетевого потока (Flow) для хеш-таблицы
 typedef struct {
@@ -33,7 +19,7 @@ typedef struct {
     } ip;
     uint16_t src_port;
     uint16_t dst_port;
-    uint8_t proto;       // протокол верхнего уровня (TCP/UDP/ICMP и т.д.)
+    uint8_t proto;          // протокол транспортного уровня (TCP/UDP/ICMP и т.д.)
 } FlowKey;
 
 // Структура записи в итоговом логе
@@ -50,7 +36,7 @@ typedef struct {
     uint16_t src_port;
     uint16_t dst_port;
     uint32_t packet_length;
-    char protocol_name[64];  // Название обнаруженного протокола (например, "HTTP")
+    char protocol_name[64];  // Название обнаруженного протокола/приложения (например, "HTTP")
 } PacketLogEntry;
 
 // Информация о потоке обработки, включая nDPI и результаты
@@ -71,20 +57,10 @@ typedef struct {
     NDPI_ThreadInfo *ndpi_info;
 } ThreadParam;
 
-// Функции работы с очередью пакетов
-void init_queue(PacketQueue *q);
-void destroy_queue(PacketQueue *q);
-void enqueue_packet(PacketQueue *q, PacketQueueItem item);
-PacketQueueItem dequeue_packet(PacketQueue *q);
-void enqueue_terminate(PacketQueue *q);  // поставить специальный элемент-заглушку, сигнализирующий об окончании
-
 // Функции для работы с nDPI и потоками
 int init_ndpi_detection(NDPI_ThreadInfo *info);
 void free_thread_resources(NDPI_ThreadInfo *info);
 int select_thread_for_packet(const u_char *packet, uint32_t caplen);
 void *packet_processor_thread(void *arg);
-
-// Функция сравнения для сортировки результатов по имени протокола
-int compare_by_protocol(const void *a, const void *b);
 
 #endif // PACKET_PROCESSOR_H

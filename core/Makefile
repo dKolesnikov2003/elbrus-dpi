@@ -2,7 +2,7 @@
 CC      ?= gcc
 
 # --- Общие флаги -------------------------------------------------------------
-CFLAGS_BASE := -Wall -pthread -std=c11 -D_DEFAULT_SOURCE -D_GNU_SOURCE -Iinclude
+CFLAGS_BASE := -Wall -pthread -Iinclude
 CFLAGS_OPT  ?= -O2
 CFLAGS      ?= $(CFLAGS_OPT) $(CFLAGS_BASE)
 
