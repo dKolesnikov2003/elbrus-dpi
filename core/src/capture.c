@@ -108,7 +108,7 @@ int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
             return -1;
         }
         // pcap_file_offset содержит байтовое смещение — можно сохранить его в БД
-        printf("pcap_file_offset: %ld\n", pcap_file_offset);
+        // printf("pcap_file_offset: %ld\n", pcap_file_offset);
 
         memcpy(data_copy, pkt_data, header->caplen);
         // Сохраняем пакет в pcap файл

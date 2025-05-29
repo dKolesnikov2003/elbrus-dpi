@@ -8,7 +8,8 @@
 #include "capture.h"
 
 static sqlite3 *db = NULL;
-static char     tbl[128];
+static char     tbl1[128];
+static char     tbl2[128];
 
 void* db_flusher_thread(void *arg) {
     FlushQueue *fq = (FlushQueue*)arg;
@@ -44,10 +45,10 @@ int db_writer_init(const CaptureOptions *opts)
         return 1;
     }
 
-    strncpy(tbl, table_1_name, sizeof(tbl) - 1);
-    tbl[sizeof(tbl) - 1] = '\0';
+    strncpy(tbl1, table_1_name, sizeof(tbl1) - 1);
+    tbl1[sizeof(tbl1) - 1] = '\0';
 
-    /* формируем CREATE TABLE IF NOT EXISTS "tbl" (...) */
+    /* формируем CREATE TABLE IF NOT EXISTS "tbl1" (...) */
     char create_sql[512];
     snprintf(create_sql, sizeof(create_sql),
              "CREATE TABLE IF NOT EXISTS \"%s\" ("
@@ -60,7 +61,7 @@ int db_writer_init(const CaptureOptions *opts)
              "dst_port INTEGER,"
              "packet_length INTEGER,"
              "protocol_name TEXT);",
-             tbl);
+             tbl1);
 
     if (sqlite3_exec(db, create_sql, NULL, NULL, &errmsg) != SQLITE_OK) {
         fprintf(stderr, "Ошибка создания таблицы: %s\n", errmsg);
@@ -75,8 +76,8 @@ int db_writer_init(const CaptureOptions *opts)
         return -1;
     }
 
-    strncpy(tbl, table_2_name, sizeof(tbl) - 1);
-    tbl[sizeof(tbl) - 1] = '\0';
+    strncpy(tbl2, table_2_name, sizeof(tbl2) - 1);
+    tbl2[sizeof(tbl2) - 1] = '\0';
 
     snprintf(create_sql, sizeof(create_sql),
          "CREATE TABLE IF NOT EXISTS \"%s\" ("
@@ -85,7 +86,7 @@ int db_writer_init(const CaptureOptions *opts)
          "pcap_file_offset INTEGER,"
          "packet_length INTEGER,"
          "FOREIGN KEY (timestamp_ms) REFERENCES \"%s\"(timestamp_ms));",
-         tbl, table_1_name);
+         tbl2, table_1_name);
 
     if (sqlite3_exec(db, create_sql, NULL, NULL, &errmsg) != SQLITE_OK) {
         fprintf(stderr, "Ошибка создания таблицы: %s\n", errmsg);
@@ -104,7 +105,7 @@ int db_writer_insert_batch(const PacketLogEntry *entries, size_t count) {
             "(timestamp_ms, ip_version, src_addr, dst_addr, "
             "src_port, dst_port, packet_length, protocol_name) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?);",
-            tbl);
+            tbl1);
 
     sqlite3_stmt *stmt;
     if(sqlite3_prepare_v2(db, insert_sql, -1, &stmt, NULL) != SQLITE_OK) {
