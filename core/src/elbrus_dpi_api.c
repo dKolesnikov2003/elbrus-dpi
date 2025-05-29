@@ -26,8 +26,11 @@ const char *get_relative_db_path(void)
 
 int start_analysis(const CaptureOptions *opts)
 {
+    FlushQueue flush_queue;
+    flush_queue_init(&flush_queue);
+
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *pcap_handle = capture_init(opts, errbuf, sizeof(errbuf), NULL);
+    pcap_t *pcap_handle = capture_init(opts, errbuf, sizeof(errbuf), NULL, &flush_queue);
     if (pcap_handle == NULL)
     {
         fprintf(stderr, "pcap: %s\n", errbuf);
@@ -43,8 +46,6 @@ int start_analysis(const CaptureOptions *opts)
     // Создаем очереди для каждого потока и инициализируем nDPI для каждого потока
     PacketQueue queues[THREAD_COUNT];
     NDPI_ThreadInfo ndpi_infos[THREAD_COUNT];
-    FlushQueue flush_queue;
-    flush_queue_init(&flush_queue);
 
     for (int i = 0; i < THREAD_COUNT; ++i)
     {

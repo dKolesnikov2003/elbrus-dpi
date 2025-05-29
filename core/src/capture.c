@@ -24,7 +24,7 @@ static void default_sigint_handler(int signo) {
     if(g_pcap_handle) pcap_breakloop(g_pcap_handle);
 }
 
-pcap_t *capture_init(const CaptureOptions *opt, char *errbuf, size_t errbuf_len, void (*sigint_handler)(int)) {
+pcap_t *capture_init(const CaptureOptions *opt, char *errbuf, size_t errbuf_len, void (*sigint_handler)(int), FlushQueue *flush_queue) {
     pcap_t *pcap_handle = NULL;
     errbuf[0] = 0;
     if(opt->mode == CAP_SRC_FILE) {
@@ -61,6 +61,12 @@ pcap_t *capture_init(const CaptureOptions *opt, char *errbuf, size_t errbuf_len,
     g_pcap_handle = pcap_handle;
     signal(SIGINT, default_sigint_handler);
     return pcap_handle;
+}
+
+static void add_raw_data_log_to_flush_queue(FlushQueue *flush_queue, const u_char *data, size_t len) {
+    //pthread_mutex_lock(&info->results_mutex);
+
+    //pthread_mutex_unlock(&info->results_mutex);
 }
 
 int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
