@@ -28,6 +28,8 @@ int start_analysis(const CaptureOptions *opts)
 {
     FlushQueue flush_queue;
     flush_queue_init(&flush_queue);
+    pthread_mutex_init(&flush_queue.mutex, NULL);
+    pthread_cond_init(&flush_queue.cond_nonempty, NULL);
 
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t *pcap_handle = capture_init(opts, errbuf, sizeof(errbuf), NULL, &flush_queue);
@@ -55,7 +57,7 @@ int start_analysis(const CaptureOptions *opts)
             fprintf(stderr, "Ошибка инициализации nDPI для потока %d\n", i);
             return EXIT_FAILURE;
         }
-        pthread_mutex_init(&ndpi_infos[i].results_mutex, NULL);
+        
         // Заполняем параметры для потока
         ndpi_infos[i].flush_queue = &flush_queue;
         thread_params[i].thread_id = i;
