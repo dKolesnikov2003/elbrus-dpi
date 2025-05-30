@@ -7,7 +7,8 @@
 #include <ndpi/ndpi_api.h>
 
 #include "packet_queue.h"
-#include "flush_queue.h"
+#include "DPI_result_flush_queue.h"
+#include "raw_packets_log_flush_queue.h"
 
 
 // Ключ (идентификатор) сетевого потока (Flow) для хеш-таблицы

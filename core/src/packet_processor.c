@@ -75,10 +75,6 @@ int init_ndpi_detection(NDPI_ThreadInfo *info) {
         fprintf(stderr, "nDPI: ошибка finalize_initialization\n");
         return -1;
     }
-    // Выделяем память под результаты (начально 0 записей, память будет увеличиваться по мере необходимости)
-    info->results = NULL;
-    info->result_count = 0;
-    info->result_capacity = 0;
     // Инициализируем хеш-таблицу потоков (изначально все бакеты пустые)
     memset(info->flow_table, 0, sizeof(info->flow_table));
     return 0;
@@ -86,9 +82,11 @@ int init_ndpi_detection(NDPI_ThreadInfo *info) {
 
 // Освобождение ресурсов nDPI для потока (очистка памяти)
 void free_thread_resources(NDPI_ThreadInfo *info) {
-    if(info->results != NULL) {
-        free(info->results);
-        info->results = NULL;
+    if(info->resultsQueue != NULL) {
+        info->resultsQueue = NULL;
+    }
+    if(info->rawPacketsLogQueue != NULL) {
+        info->rawPacketsLogQueue = NULL;
     }
     // Освобождаем все потоки (flows) и их структуры
     for(int i = 0; i < FLOW_HASH_SIZE; ++i) {
@@ -109,24 +107,6 @@ void free_thread_resources(NDPI_ThreadInfo *info) {
         ndpi_exit_detection_module(info->ndpi_struct);
         info->ndpi_struct = NULL;
     }
-}
-
-// Вспомогательная функция для добавления записи результата (лог) в массив результатов потока
-static void add_result_entry(NDPI_ThreadInfo *info, PacketLogEntry *entry) {
-    // Если массив результатов заполнен, увеличиваем его размер
-    if(info->result_count == info->result_capacity) {
-        size_t new_cap = (info->result_capacity == 0) ? 1024 : info->result_capacity * 2;
-        PacketLogEntry *new_array = realloc(info->results, new_cap * sizeof(PacketLogEntry));
-        if(new_array == NULL) {
-            fprintf(stderr, "Ошибка: не удалось выделить память под результаты\n");
-            // Если не удалось увеличить, просто выходим (пропуск записи)
-            return;
-        }
-        info->results = new_array;
-        info->result_capacity = new_cap;
-    }
-    // Сохраняем запись в массиве результатов
-    info->results[info->result_count++] = *entry;
 }
 
 // Выбирает ID потока (0..THREAD_COUNT-1) по содержимому пакета (используется в главном потоке)
