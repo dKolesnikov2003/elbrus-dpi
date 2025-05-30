@@ -109,128 +109,6 @@ void free_thread_resources(NDPI_ThreadInfo *info) {
     }
 }
 
-// Выбирает ID потока (0..THREAD_COUNT-1) по содержимому пакета (используется в главном потоке)
-int select_thread_for_packet(const unsigned char *packet, uint32_t caplen) {
-    // Анализируем заголовок канального уровня (Ethernet) для определения протокола L3
-    if(caplen < 14) {
-        return 0; // пакет слишком мал, отправим в поток 0 (например)
-    }
-    uint16_t ethertype = ntohs(*(uint16_t*)(packet + 12));
-    unsigned int offset = 14;
-    // Обработка VLAN-тегов 802.1Q (если есть)
-    if(ethertype == 0x8100 || ethertype == 0x88A8) {
-        // Если пакет содержит VLAN, смещаем указатель на 4 байта (TPID+TCI)
-        if(caplen < 18) {
-            return 0;
-        }
-        ethertype = ntohs(*(uint16_t*)(packet + 16));
-        offset = 18;
-        // Примечание: Для нескольких вложенных VLAN (QinQ) потребуется дополнительное смещение
-        if(ethertype == 0x8100 || ethertype == 0x88A8) {
-            // Простейшая обработка второго VLAN-тега
-            if(caplen < 22) {
-                return 0;
-            }
-            ethertype = ntohs(*(uint16_t*)(packet + 20));
-            offset = 22;
-        }
-    }
-    // Переменные для IP адресов и портов
-    uint32_t src_ip = 0, dst_ip = 0;
-    uint64_t src_ip6[2] = {0,0}, dst_ip6[2] = {0,0};
-    uint16_t src_port = 0, dst_port = 0;
-    uint8_t proto = 0;
-    // Определяем тип сетевого протокола
-    if(ethertype == 0x0800 && caplen >= offset + sizeof(struct iphdr)) {
-        // IPv4
-        struct iphdr *ip = (struct iphdr*)(packet + offset);
-        if(ip->ihl < 5) {
-            // Неверная длина заголовка IPv4
-            return 0;
-        }
-        uint32_t ip_hdr_len = ip->ihl * 4;
-        if(caplen < offset + ip_hdr_len) {
-            return 0;
-        }
-        src_ip = ip->saddr;
-        dst_ip = ip->daddr;
-        proto = ip->protocol;
-        // Определяем порты для TCP/UDP
-        if(proto == IPPROTO_TCP && caplen >= offset + ip_hdr_len + sizeof(struct tcphdr)) {
-            struct tcphdr *tcp = (struct tcphdr*)(packet + offset + ip_hdr_len);
-            src_port = ntohs(tcp->source);
-            dst_port = ntohs(tcp->dest);
-        } else if(proto == IPPROTO_UDP && caplen >= offset + ip_hdr_len + sizeof(struct udphdr)) {
-            struct udphdr *udp = (struct udphdr*)(packet + offset + ip_hdr_len);
-            src_port = ntohs(udp->source);
-            dst_port = ntohs(udp->dest);
-        } else {
-            src_port = dst_port = 0;
-        }
-        // Для симметричности потоков (чтобы прямой и обратный трафик попал в один поток) 
-        // используем минимальный IP и максимальный порт при расчёте
-        uint32_t min_ip = src_ip < dst_ip ? src_ip : dst_ip;
-        uint32_t max_port = src_port > dst_port ? src_port : dst_port;
-        // Вычисляем простой хеш
-        uint64_t key = min_ip;
-        key += proto;
-        key += max_port;
-        // Выбираем поток на основе хеша
-        int thread = key % THREAD_COUNT;
-        return thread;
-    } else if(ethertype == 0x86DD && caplen >= offset + sizeof(struct ip6_hdr)) {
-        // IPv6
-        struct ip6_hdr *ip6 = (struct ip6_hdr*)(packet + offset);
-        // IPv6 заголовок длиной 40 байт
-        if(caplen < offset + sizeof(struct ip6_hdr)) {
-            return 0;
-        }
-        // Копируем адреса IPv6 (128 бит каждый)
-        memcpy(src_ip6, &ip6->ip6_src, 16);
-        memcpy(dst_ip6, &ip6->ip6_dst, 16);
-        proto = ip6->ip6_nxt;
-        // Определяем порты для TCP/UDP (если следующий заголовок - TCP или UDP и без экст. заголовков)
-        if(proto == IPPROTO_TCP) {
-            size_t l4_offset = offset + sizeof(struct ip6_hdr);
-            if(caplen >= l4_offset + sizeof(struct tcphdr)) {
-                struct tcphdr *tcp = (struct tcphdr*)(packet + l4_offset);
-                src_port = ntohs(tcp->source);
-                dst_port = ntohs(tcp->dest);
-            }
-        } else if(proto == IPPROTO_UDP) {
-            size_t l4_offset = offset + sizeof(struct ip6_hdr);
-            if(caplen >= l4_offset + sizeof(struct udphdr)) {
-                struct udphdr *udp = (struct udphdr*)(packet + l4_offset);
-                src_port = ntohs(udp->source);
-                dst_port = ntohs(udp->dest);
-            }
-        } else {
-            src_port = dst_port = 0;
-        }
-        // Для симметричности IPv6: используем меньший адрес (лексикографически) и больший порт
-        // Сравниваем пару 128-битных адресов
-        int use_src = 0;
-        if(memcmp(src_ip6, dst_ip6, 16) < 0) {
-            use_src = 1;
-        }
-        uint64_t min_addr_sum = 0;
-        if(use_src) {
-            min_addr_sum = src_ip6[0] + src_ip6[1];
-        } else {
-            min_addr_sum = dst_ip6[0] + dst_ip6[1];
-        }
-        uint16_t max_port = src_port > dst_port ? src_port : dst_port;
-        uint64_t key = min_addr_sum;
-        key += proto;
-        key += max_port;
-        int thread = key % THREAD_COUNT;
-        return thread;
-    } else {
-        // Неподдерживаемый тип фрейма (например ARP), отправляем в поток 0
-        return 0;
-    }
-}
-
 // Функция обработчика пакетов (потоковая функция)
 void *packet_processor_thread(void *arg) {
     ThreadParam *param = (ThreadParam*)arg;
@@ -392,8 +270,11 @@ void *packet_processor_thread(void *arg) {
                 proto_name = ndpi_get_proto_name(info->ndpi_struct, detected_protocol.proto.master_protocol);
             }
         }
+
+
+
         // Создаем запись для лога
-        PacketLogEntry entry;
+        DPIResultFlushQueueItem entry;
         entry.ip_version = key.ip_version;
         if(entry.ip_version == 4) {
             entry.ip_src.v4 = *(struct in_addr*)&key.ip.v4.src_ip;
@@ -414,7 +295,7 @@ void *packet_processor_thread(void *arg) {
         strncpy(entry.protocol_name, proto_name, sizeof(entry.protocol_name) - 1);
         entry.protocol_name[sizeof(entry.protocol_name) - 1] = '\0';
         // Добавляем запись в список результатов потока
-        add_result_entry(info, &entry);
+        enqueue_DPI_res_flush_queue(info->resultsQueue, entry);
 
         // Освобождаем буфер пакета
         free(item.data);

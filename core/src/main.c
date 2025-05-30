@@ -11,10 +11,7 @@
 
 #include "packet_processor.h"
 
-// Количество потоков обработки (по умолчанию 8 для Эльбрус-8C)
-#define THREAD_COUNT 8
 
-// Структура для передачи параметров потоку обработки
 
 // Глобальный массив параметров потоков и дескрипторов потоков
 static ThreadParam thread_params[THREAD_COUNT];
@@ -53,48 +50,6 @@ const char *parse_args(int argc, char *argv[], const char **out_logfile) {
     return pcap_file;
 }
 
-// Функция чтения пакетов из pcap и распределения по потокам
-int distribute_packets(pcap_t *pcap, PacketQueue queues[]) {
-    struct pcap_pkthdr *header;
-    const u_char *pkt_data;
-    int status;
-    int error_occurred = 0;
-    uint64_t packet_count = 0;
-    // Читаем пакеты из pcap файла по одному
-    while((status = pcap_next_ex(pcap, &header, &pkt_data)) >= 0) {
-        if(status == 0) {
-            // 0 означает таймаут (для оффлайн не должно быть, но на всякий случай)
-            continue;
-        }
-        packet_count++;
-        // Копируем данные пакета, т.к. pcap_next_ex возвращает указатель на внутренний буфер
-        u_char *data_copy = (u_char*)malloc(header->caplen);
-        if(data_copy == NULL) {
-            fprintf(stderr, "Ошибка: недостаточно памяти для копирования пакета\n");
-            error_occurred = 1;
-            break;
-        }
-        memcpy(data_copy, pkt_data, header->caplen);
-        // Определяем, к какому потоку отнести пакет (хешируем по IP/портам)
-        int thread_id = select_thread_for_packet(data_copy, header->caplen);
-        // Создаем структуру пакета для очереди
-        PacketQueueItem item;
-        item.header = *header;
-        item.data = data_copy;
-        // Добавляем пакет в соответствующую очередь
-        enqueue_packet(&queues[thread_id], item);
-    }
-    if(status == -1) {
-        // Ошибка чтения pcap
-        fprintf(stderr, "Ошибка pcap: %s\n", pcap_geterr(pcap));
-        error_occurred = 1;
-    }
-    // Завершаем очереди, добавляя сигнал окончания (sentinel) для каждого потока
-    for(int i = 0; i < THREAD_COUNT; ++i) {
-        enqueue_terminate(&queues[i]);
-    }
-    return error_occurred ? -1 : 0;
-}
 
 int main(int argc, char *argv[]) {
     const char *log_filename;
