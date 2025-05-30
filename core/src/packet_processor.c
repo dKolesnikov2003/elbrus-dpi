@@ -9,7 +9,9 @@
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 
-#define THREAD_COUNT 4
+#include "common.h"
+
+
 // Константы для хеш-таблицы потоков в каждом потоке
 #define FLOW_HASH_SIZE 8192  // размер таблицы хеширования потоков (должна быть степенью 2 для эффективности)
 
@@ -128,7 +130,7 @@ static void add_result_entry(NDPI_ThreadInfo *info, PacketLogEntry *entry) {
 }
 
 // Выбирает ID потока (0..THREAD_COUNT-1) по содержимому пакета (используется в главном потоке)
-int select_thread_for_packet(const u_char *packet, uint32_t caplen) {
+int select_thread_for_packet(const unsigned char *packet, uint32_t caplen) {
     // Анализируем заголовок канального уровня (Ethernet) для определения протокола L3
     if(caplen < 14) {
         return 0; // пакет слишком мал, отправим в поток 0 (например)

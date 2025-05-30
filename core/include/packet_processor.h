@@ -2,12 +2,12 @@
 #define PACKET_PROCESSOR_H
 
 #include <stdint.h>
-#include <pthread.h>
 
 #include <pcap.h>
 #include <ndpi/ndpi_api.h>
 
 #include "packet_queue.h"
+#include "flush_queue.h"
 
 
 // Ключ (идентификатор) сетевого потока (Flow) для хеш-таблицы
@@ -22,31 +22,13 @@ typedef struct {
     uint8_t proto;          // протокол транспортного уровня (TCP/UDP/ICMP и т.д.)
 } FlowKey;
 
-// Структура записи в итоговом логе
-typedef struct {
-    uint8_t ip_version;
-    union {
-        struct in_addr v4;
-        struct in6_addr v6;
-    } ip_src;
-    union {
-        struct in_addr v4;
-        struct in6_addr v6;
-    } ip_dst;
-    uint16_t src_port;
-    uint16_t dst_port;
-    uint32_t packet_length;
-    char protocol_name[64];  // Название обнаруженного протокола/приложения (например, "HTTP")
-} PacketLogEntry;
-
 // Информация о потоке обработки, включая nDPI и результаты
 typedef struct {
     struct ndpi_detection_module_struct *ndpi_struct;  // локальная структура nDPI для потока
     // Хеш-таблица для отслеживания потоков (flows) данного потока обработки
     void *flow_table[8192];  // Используем как массив указателей на FlowNode (определяется внутри .c)
-    PacketLogEntry *results; // динамический массив результатов (лог записей) данного потока
-    size_t result_count;
-    size_t result_capacity;
+    DPIResultFlushQueue *resultsQueue; //  Очередь для хранения результатов обнаружения
+    RawPacketsLogFlushQueue *rawPacketsLogQueue; // Очередь для хранения информации о смещении пакетов в pcap файле
 } NDPI_ThreadInfo;
 
 // Параметры, передаваемые в поток (определены в main.c)
