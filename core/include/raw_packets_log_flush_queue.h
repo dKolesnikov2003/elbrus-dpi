@@ -27,7 +27,7 @@ typedef struct {
 void init_raw_packs_log_flush_queue(RawPacketsLogFlushQueue *q);
 void destroy_raw_packs_log_flush_queue(RawPacketsLogFlushQueue *q);
 int enqueue_raw_packs_log_flush_queue(RawPacketsLogFlushQueue *q, RawPacketsLogFlushQueueItem item);
-RawPacketsLogFlushQueueItem dequeue_raw_record(RawPacketsLogFlushQueue *q);
+RawPacketsLogFlushQueueItem dequeue_raw_packs_log_flush_queue(RawPacketsLogFlushQueue *q);
 void raw_packs_log_queue_finish(RawPacketsLogFlushQueue *q);
 
 #endif // RAW_PACKETS_LOG_FLUSH_QUEUE_H

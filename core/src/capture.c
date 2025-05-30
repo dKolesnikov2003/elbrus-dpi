@@ -8,11 +8,16 @@
 #include <netinet/ip6.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
+#include <net/if.h>
+#include <libgen.h>
+#include <unistd.h>
 
 #include <pcap.h>
 
 #include "common.h"
 #include "packet_queue.h"
+#include "eldpi_api.h"
+#include "capture.h"
 
 
 char file_and_table_name_pattern[128]; // Глобальная переменная для хранения шаблона имени файла и таблицы

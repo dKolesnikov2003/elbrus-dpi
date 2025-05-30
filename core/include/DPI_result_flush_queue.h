@@ -39,7 +39,7 @@ typedef struct {
 void init_DPI_res_flush_queue(DPIResultFlushQueue *q);
 void destroy_DPI_res_flush_queue(DPIResultFlushQueue *q);
 int enqueue_DPI_res_flush_queue(DPIResultFlushQueue *q, DPIResultFlushQueueItem item);
-DPIResultFlushQueueItem dequeue_record(DPIResultFlushQueue *q);
+DPIResultFlushQueueItem dequeue_DPI_res_flush_queue(DPIResultFlushQueue *q);
 void DPI_res_flush_queue_finish(DPIResultFlushQueue *q);
 
 #endif // DPI_RESULT_FLUSH_QUEUE_H
